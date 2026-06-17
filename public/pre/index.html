@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>personalised reading experience — read with intent</title>
+  <meta name="description" content="a personalised reading layer for research papers. understand your interests once, then let the papers reveal themselves." />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75' fill='%23ffffff'>P</text></svg>" />
+  <link rel="icon" type="image/png" href="https://knownosin.com/pre/pre-icon.png" />
+  <link rel="apple-touch-icon" href="https://knownosin.com/pre/pre-icon.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="/pre/styles.css"/>
+</head>
+<body>
+  <!-- grain overlay -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <!-- top nav -->
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="#top" class="nav-mark">pre.</a>
+      <nav class="nav-links">
+        <a href="#how">how</a>
+        <a href="#features">features</a>
+        <a href="#tech">tech</a>
+        <a href="#try" class="nav-cta">try it →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+
+    <!-- ============ HERO ============ -->
+    <section class="hero">
+      <div class="hero-inner">
+        <p class="eyebrow reveal">personalised reading experience</p>
+
+        <h1 class="hero-title">
+          <span class="reveal">the parts</span>
+          <span class="reveal">that matter.</span>
+          <span class="reveal hero-italic"><em>nothing else.</em></span>
+        </h1>
+
+        <p class="hero-sub reveal">
+          your research interests, encoded once. every paper you open, filtered through them.
+          a quieter way to read.
+        </p>
+
+        <div class="hero-cta reveal">
+          <a href="#try" class="btn btn-primary">enter <span>→</span></a>
+          <a href="#how" class="btn btn-ghost">how it works</a>
+        </div>
+
+        <p class="hero-foot reveal">a master's project · KFUPM</p>
+      </div>
+    </section>
+
+    <!-- ============ MANIFESTO ============ -->
+    <section class="manifesto">
+      <div class="container">
+        <p class="manifesto-label">manifesto</p>
+        <h2 class="manifesto-text">
+          not every sentence deserves your time. researchers read hundreds of papers a year,
+          and most of every paper is noise <em>to you</em> — even when it's signal to someone else.
+          we built a reader that knows the difference, because it knows <em>you</em>.
+        </h2>
+      </div>
+    </section>
+
+    <!-- ============ HOW IT WORKS ============ -->
+    <section id="how" class="how">
+      <div class="container">
+        <div class="section-head">
+          <p class="section-label">how</p>
+          <h2 class="section-title">three steps. about two minutes.</h2>
+        </div>
+
+        <div class="steps">
+          <article class="step">
+            <div class="step-num">01</div>
+            <h3 class="step-title">build your profile</h3>
+            <p class="step-text">
+              pick research topics. add a few keywords. drop in one or two papers you already like.
+              the system fuses them into a single signal of what <em>you</em> care about.
+            </p>
+          </article>
+
+          <article class="step">
+            <div class="step-num">02</div>
+            <h3 class="step-title">upload a paper</h3>
+            <p class="step-text">
+              any text-based pdf. the system parses every sentence, scores each one against your profile,
+              and keeps the rest aside.
+            </p>
+          </article>
+
+          <article class="step">
+            <div class="step-num">03</div>
+            <h3 class="step-title">read what matters</h3>
+            <p class="step-text">
+              relevant sentences highlighted directly in the original document. real pdf, real annotations.
+              download it. open it anywhere.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FEATURES ============ -->
+    <section id="features" class="features">
+      <div class="container">
+        <div class="section-head">
+          <p class="section-label">features</p>
+          <h2 class="section-title">designed for serious reading.</h2>
+        </div>
+
+        <div class="feature-grid">
+          <div class="feature">
+            <h3>multi-source profile</h3>
+            <p>topics, keywords, seed papers, and free text fused via weighted-mean embeddings. coherent representation from messy signals.</p>
+          </div>
+
+          <div class="feature">
+            <h3>semantic ranking</h3>
+            <p>each sentence scored by cosine similarity against your profile vector. no keyword matching. no rules. just meaning.</p>
+          </div>
+
+          <div class="feature">
+            <h3>annotated pdf output</h3>
+            <p>the original paper, with your highlights. plus a rendered page viewer in-app. no rebuilding the reading experience from scratch.</p>
+          </div>
+
+          <div class="feature">
+            <h3>profile reusable</h3>
+            <p>build once, use on every paper that follows. profiles saved as portable json. take them anywhere.</p>
+          </div>
+
+          <div class="feature">
+            <h3>off-profile fallback</h3>
+            <p>when the paper doesn't match your interests, the system says so — and offers the best guesses anyway. honest, not silent.</p>
+          </div>
+
+          <div class="feature">
+            <h3>local first</h3>
+            <p>everything runs in your session. no accounts. no tracking. no cloud-side profile storage.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TECH ============ -->
+    <section id="tech" class="tech">
+      <div class="container">
+        <div class="section-head">
+          <p class="section-label">under the hood</p>
+          <h2 class="section-title">technical detail, briefly.</h2>
+        </div>
+
+        <div class="tech-grid">
+          <div class="tech-item">
+            <p class="tech-key">embedding model</p>
+            <p class="tech-val">qwen3-embedding-8b (Custom Embedding Model from Qwen) on gpu · all-minilm-l6-v2 on cpu</p>
+          </div>
+          <div class="tech-item">
+            <p class="tech-key">pdf processing</p>
+            <p class="tech-val">pymupdf for extraction · annotation · page rendering</p>
+          </div>
+          <div class="tech-item">
+            <p class="tech-key">interface</p>
+            <p class="tech-val">modal · python · Vite</p>
+          </div>
+          <div class="tech-item">
+            <p class="tech-key">caching</p>
+            <p class="tech-val">model-aware embedding cache · per-document persistence</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TRY IT / CTA ============ -->
+    <section id="try" class="cta">
+      <div class="container">
+        <p class="cta-eyebrow">try it</p>
+        <h2 class="cta-title">
+          open the app. <em>spend ten minutes.</em> tell us if it works.
+        </h2>
+        <p class="cta-sub">
+          this is a master's research project in active evaluation. your feedback shapes what gets built next.
+        </p>
+
+        <div class="cta-actions">
+          <a class="card-link" href="https://redfries--personalized-reading-v5-web-app.modal.run/" target="_blank" rel="noopener">
+            <div class="card-link-inner">
+              <p class="card-num">01</p>
+              <h3>open the reader</h3>
+              <p>launches in a new tab. free, no signup.</p>
+              <span class="card-arrow">→</span>
+            </div>
+          </a>
+
+          <a class="card-link card-link-accent" href="https://forms.gle/oMv9Kj9PKp2HPyat6" target="_blank" rel="noopener">
+            <div class="card-link-inner">
+              <p class="card-num">02</p>
+              <h3>share your feedback</h3>
+              <p>five minutes. thirteen questions. your honest take helps complete this research.</p>
+              <span class="card-arrow">→</span>
+            </div>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FOOTER ============ -->
+    <footer class="footer">
+      <div class="container footer-inner">
+        <div class="footer-mark">
+          <p class="footer-title">pre.</p>
+          <p class="footer-sub">personalised reading experience</p>
+        </div>
+
+        <div class="footer-meta">
+          <p>a master's research project</p>
+          <p>king fahd university of petroleum and minerals</p>
+          <p class="footer-year">2026</p>
+        </div>
+      </div>
+    </footer>
+
+  </main>
+
+  <script src="/pre/script.js"></script>
+</body>
+</html>
