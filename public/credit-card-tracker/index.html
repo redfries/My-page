@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Credit Card Rotation & Debt Tracker — Track limits, utilization, payments, transfers, and friend dues across all your credit cards.">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Credit Card Tracker — Rotation & Debt Manager</title>
+  <link rel="stylesheet" href="style.css?v=3">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💳</text></svg>">
+</head>
+<body>
+
+  <!-- ─── Header ─────────────────────────────────────────── -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="app-logo">
+        <div class="app-logo-icon">₹</div>
+        <div class="app-title">CardTrack <span>Pro</span></div>
+      </div>
+      <nav class="tab-nav" id="tab-nav">
+        <button class="tab-btn active" data-tab="dashboard">
+          <span class="tab-icon">📊</span> Dashboard
+        </button>
+        <button class="tab-btn" data-tab="cards">
+          <span class="tab-icon">💳</span> Cards
+        </button>
+        <button class="tab-btn" data-tab="transactions">
+          <span class="tab-icon">📝</span> Transactions
+        </button>
+        <button class="tab-btn" data-tab="rotation">
+          <span class="tab-icon">🔄</span> Rotation
+        </button>
+        <button class="tab-btn" data-tab="settings">
+          <span class="tab-icon">⚙️</span> Settings
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ─── Main Content ───────────────────────────────────── -->
+  <main class="app-wrapper" style="padding-top: 24px; padding-bottom: 100px;">
+    <div id="tab-dashboard" class="page-section"></div>
+    <div id="tab-cards" class="page-section hidden"></div>
+    <div id="tab-transactions" class="page-section hidden"></div>
+    <div id="tab-rotation" class="page-section hidden"></div>
+    <div id="tab-settings" class="page-section hidden"></div>
+  </main>
+
+  <!-- ─── FAB (Floating Action Button) ───────────────────── -->
+  <button class="fab hidden" id="fab" title="Add Transaction">+</button>
+
+  <!-- ─── Toast Container ────────────────────────────────── -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- ─── Modal Overlay ──────────────────────────────────── -->
+  <div class="modal-overlay hidden" id="modal-overlay">
+    <div class="modal-card" id="modal-card"></div>
+  </div>
+
+  <script src="app.js?v=3"></script>
+</body>
+</html>

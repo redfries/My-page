@@ -5,3 +5,10 @@
 [build]
   command = "npm run build"
   publish = "dist"
+
+[[headers]]
+  for = "/credit-card-tracker/*"
+  [headers.values]
+    Cache-Control = "max-age=0, no-cache, no-store, must-revalidate"
+    Pragma = "no-cache"
+    Expires = "0"
