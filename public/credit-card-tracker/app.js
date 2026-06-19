@@ -605,7 +605,12 @@ const TransactionManager = {
     if (filters.dateTo) {
       txns = txns.filter(t => t.date <= filters.dateTo);
     }
-    txns.sort((a, b) => (b.date > a.date ? 1 : b.date < a.date ? -1 : 0));
+    txns.sort((a, b) => {
+      if (b.date !== a.date) {
+        return b.date > a.date ? 1 : -1;
+      }
+      return (b.createdAt || '') > (a.createdAt || '') ? 1 : -1;
+    });
     return txns;
   },
 
@@ -1675,6 +1680,7 @@ function applyTransactionFilters() {
       <td class="txn-amount ${isDebit ? 'amount-debit' : 'amount-credit'}">${formatCurrency(t.amount)}</td>
       <td style="color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${noteDisplay || '—'}</td>
       <td>
+        <button class="btn-icon" onclick="redoTransaction('${t.id}')" title="Repeat / Redo Transaction">🔄</button>
         <button class="btn-icon" onclick="confirmDeleteTxn('${t.id}')" title="Delete">🗑️</button>
       </td>
     </tr>`;
@@ -1683,17 +1689,21 @@ function applyTransactionFilters() {
   wrapper.innerHTML = tbl;
 }
 
-function openTransactionModal() {
+function openTransactionModal(preFillData = null) {
   const cards = DataStore.getCards();
   if (cards.length === 0) {
     showToast('Add a card first before recording transactions.', 'error');
     return;
   }
-  const lastCardId = localStorage.getItem('cct_lastCardId') || cards[0].id;
+  const lastCardId = preFillData ? preFillData.cardId : (localStorage.getItem('cct_lastCardId') || cards[0].id);
+  const type = preFillData ? preFillData.type : 'spend';
+  const amount = preFillData ? preFillData.amount : '';
+  const note = preFillData ? preFillData.note : '';
+  const friendName = (preFillData && preFillData.friendName) ? preFillData.friendName : '';
 
   const html = `
-    <div class="modal-title">Add Transaction</div>
-    <div class="modal-subtitle">Record a new card activity</div>
+    <div class="modal-title">${preFillData ? 'Repeat' : 'Add'} Transaction</div>
+    <div class="modal-subtitle">${preFillData ? 'Verify and save repeated transaction' : 'Record a new card activity'}</div>
     <form id="txnForm">
       <div class="form-group">
         <label class="form-label" for="inp-txnCard">Card</label>
@@ -1705,21 +1715,21 @@ function openTransactionModal() {
         <div class="form-group">
           <label class="form-label" for="inp-txnType">Type</label>
           <select id="inp-txnType" class="form-select" required onchange="onTxnTypeChange()">
-            <option value="spend">Spend</option>
-            <option value="payment">Payment</option>
-            <option value="transfer">Transfer</option>
-            <option value="refund">Refund</option>
-            <option value="friend_buy">Friend Buy</option>
+            <option value="spend" ${type === 'spend' ? 'selected' : ''}>Spend</option>
+            <option value="payment" ${type === 'payment' ? 'selected' : ''}>Payment</option>
+            <option value="transfer" ${type === 'transfer' ? 'selected' : ''}>Transfer</option>
+            <option value="refund" ${type === 'refund' ? 'selected' : ''}>Refund</option>
+            <option value="friend_buy" ${type === 'friend_buy' ? 'selected' : ''}>Friend Buy</option>
           </select>
         </div>
         <div class="form-group">
           <label class="form-label" for="inp-txnAmount">Amount (₹)</label>
-          <input type="number" id="inp-txnAmount" class="form-input" placeholder="0" min="0.01" step="0.01" required>
+          <input type="number" id="inp-txnAmount" class="form-input" placeholder="0" min="0.01" step="0.01" value="${amount}" required>
         </div>
       </div>
-      <div id="txn-friend-wrapper" class="form-group hidden">
+      <div id="txn-friend-wrapper" class="form-group ${type === 'friend_buy' ? '' : 'hidden'}">
         <label class="form-label" for="inp-txnFriend">Friend Name</label>
-        <input type="text" id="inp-txnFriend" class="form-input" placeholder="Who owes you?">
+        <input type="text" id="inp-txnFriend" class="form-input" placeholder="Who owes you?" value="${escapeHTML(friendName)}">
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -1728,12 +1738,12 @@ function openTransactionModal() {
         </div>
         <div class="form-group">
           <label class="form-label" for="inp-txnNote">Note (optional)</label>
-          <input type="text" id="inp-txnNote" class="form-input" placeholder="What for?">
+          <input type="text" id="inp-txnNote" class="form-input" placeholder="What for?" value="${escapeHTML(note)}">
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-        <button type="submit" class="btn-primary">Add Transaction</button>
+        <button type="submit" class="btn-primary">${preFillData ? 'Save Repeated' : 'Add'} Transaction</button>
       </div>
     </form>
   `;
@@ -1766,6 +1776,15 @@ function openTransactionModal() {
     renderTransactions();
   });
 }
+
+function redoTransaction(txnId) {
+  const txns = DataStore.getTransactions();
+  const t = txns.find(tx => tx.id === txnId);
+  if (t) {
+    openTransactionModal(t);
+  }
+}
+window.redoTransaction = redoTransaction;
 
 function onTxnTypeChange() {
   const type = document.getElementById('inp-txnType').value;
