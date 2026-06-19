@@ -438,7 +438,7 @@ const FirebaseSyncManager = {
 // ─── CardManager ────────────────────────────────────────────────────────────
 
 const CardManager = {
-  addCard(bankName, cardName, creditLimit, currentBalance, color, owner, limitGroupId = null) {
+  addCard(bankName, cardName, creditLimit, currentBalance, color, owner, limitGroupId = null, statementDate = null) {
     const cards = DataStore.getCards();
     const card = {
       id: generateId(),
@@ -449,6 +449,7 @@ const CardManager = {
       color: color || '#06b6d4',
       owner: owner || 'Self',
       limitGroupId: limitGroupId || null,
+      statementDate: statementDate || null,
       createdAt: nowISO(),
       updatedAt: nowISO()
     };
@@ -564,9 +565,26 @@ const TransactionManager = {
     const idx = txns.findIndex(t => t.id === id);
     if (idx === -1) return false;
     const txn = txns[idx];
+    
+    // Store copy for undo
+    TransactionManager.lastDeletedTransaction = { ...txn };
+    
     txns.splice(idx, 1);
     DataStore.saveTransactions(txns);
     this._applyBalanceEffect(txn, -1);
+    return true;
+  },
+
+  lastDeletedTransaction: null,
+
+  undoDelete() {
+    if (!this.lastDeletedTransaction) return false;
+    const txns = DataStore.getTransactions();
+    const txn = this.lastDeletedTransaction;
+    txns.push(txn);
+    DataStore.saveTransactions(txns);
+    this._applyBalanceEffect(txn, 1);
+    this.lastDeletedTransaction = null;
     return true;
   },
 
@@ -708,6 +726,10 @@ function switchTab(tabName) {
   if (!TABS.includes(tabName)) tabName = 'dashboard';
   localStorage.setItem('cct_activeTab', tabName);
 
+  if (typeof updateHeaderUndoButton === 'function') {
+    updateHeaderUndoButton();
+  }
+
   // Update tab buttons
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.tab === tabName);
@@ -831,11 +853,12 @@ function getPortfolioHTML(owner, ownerCards, ownerLimit, ownerUsed, ownerAvail, 
         <div class="group-cards-list">
           ${groupCards.map(gc => {
             const gcSharePct = group.limit > 0 ? (gc.currentBalance / group.limit) * 100 : 0;
+            const gcStmtHtml = gc.statementDate ? `<span style="font-size:0.7rem;color:var(--text-muted);margin-left:8px;">(📅 ${gc.statementDate}${gc.statementDate === 1 || gc.statementDate === 21 || gc.statementDate === 31 ? 'st' : gc.statementDate === 2 || gc.statementDate === 22 ? 'nd' : gc.statementDate === 3 || gc.statementDate === 23 ? 'rd' : 'th'})</span>` : '';
             return `
               <div class="group-card-item">
                 <div class="group-card-info">
                   <span class="group-card-color-dot" style="color: ${escapeHTML(gc.color)}; background: ${escapeHTML(gc.color)};"></span>
-                  <span class="group-card-name">${escapeHTML(gc.cardName)}</span>
+                  <span class="group-card-name">${escapeHTML(gc.cardName)}${gcStmtHtml}</span>
                 </div>
                 <div class="group-card-used">
                   <span class="group-card-used-val">${formatCurrency(gc.currentBalance)}</span>
@@ -856,11 +879,12 @@ function getPortfolioHTML(owner, ownerCards, ownerLimit, ownerUsed, ownerAvail, 
     const util = CardManager.getUtilization(c);
     const avail = CardManager.getAvailableLimit(c);
     const uColor = getUtilizationColor(util);
+    const statementHtml = c.statementDate ? `<span style="font-size: 0.72rem; background: rgba(6,182,212,0.1); color: var(--cyan); padding: 2px 6px; border-radius: var(--radius-sm); margin-left: 8px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; vertical-align: middle;">📅 Stmt: ${c.statementDate}${c.statementDate === 1 || c.statementDate === 21 || c.statementDate === 31 ? 'st' : c.statementDate === 2 || c.statementDate === 22 ? 'nd' : c.statementDate === 3 || c.statementDate === 23 ? 'rd' : 'th'}</span>` : '';
 
     pHTML += `
       <div class="glass-card credit-card" style="border-top: 3px solid ${escapeHTML(c.color)};">
         <div class="card-owner-badge ${ownerBadgeClass}">${escapeHTML(c.owner)}</div>
-        <div class="card-bank">${escapeHTML(c.bankName)}</div>
+        <div class="card-bank">${escapeHTML(c.bankName)} ${statementHtml}</div>
         <div class="card-name">${escapeHTML(c.cardName)}</div>
         <div class="card-details">
           <div>
@@ -1239,11 +1263,12 @@ function renderCards() {
           <div class="group-cards-list">
             ${groupCards.map(gc => {
               const gcSharePct = group.limit > 0 ? (gc.currentBalance / group.limit) * 100 : 0;
+              const gcStmtHtml = gc.statementDate ? `<span style="font-size:0.7rem;color:var(--text-muted);margin-left:8px;">(📅 ${gc.statementDate}${gc.statementDate === 1 || gc.statementDate === 21 || gc.statementDate === 31 ? 'st' : gc.statementDate === 2 || gc.statementDate === 22 ? 'nd' : gc.statementDate === 3 || gc.statementDate === 23 ? 'rd' : 'th'})</span>` : '';
               return `
                 <div class="group-card-item">
                   <div class="group-card-info">
                     <span class="group-card-color-dot" style="color: ${escapeHTML(gc.color)}; background: ${escapeHTML(gc.color)};"></span>
-                    <span class="group-card-name">${escapeHTML(gc.cardName)}</span>
+                    <span class="group-card-name">${escapeHTML(gc.cardName)}${gcStmtHtml}</span>
                   </div>
                   <div class="group-card-used">
                     <span class="group-card-used-val">${formatCurrency(gc.currentBalance)}</span>
@@ -1269,11 +1294,12 @@ function renderCards() {
       const avail = CardManager.getAvailableLimit(c);
       const uColor = getUtilizationColor(util);
       const ownerClass = c.owner === 'Dad' ? 'card-owner-badge--dad' : 'card-owner-badge--self';
+      const statementHtml = c.statementDate ? `<span style="font-size: 0.72rem; background: rgba(6,182,212,0.1); color: var(--cyan); padding: 2px 6px; border-radius: var(--radius-sm); margin-left: 8px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; vertical-align: middle;">📅 Stmt: ${c.statementDate}${c.statementDate === 1 || c.statementDate === 21 || c.statementDate === 31 ? 'st' : c.statementDate === 2 || c.statementDate === 22 ? 'nd' : c.statementDate === 3 || c.statementDate === 23 ? 'rd' : 'th'}</span>` : '';
 
       html += `
         <div class="glass-card credit-card" style="border-top: 3px solid ${escapeHTML(c.color)};">
           <div class="card-owner-badge ${ownerClass}">${escapeHTML(c.owner)}</div>
-          <div class="card-bank">${escapeHTML(c.bankName)}</div>
+          <div class="card-bank">${escapeHTML(c.bankName)} ${statementHtml}</div>
           <div class="card-name">${escapeHTML(c.cardName)}</div>
           <div class="card-details">
             <div>
@@ -1440,6 +1466,17 @@ function openCardModal(cardId) {
         </div>
       </div>
       <div class="form-group">
+        <label class="form-label" for="inp-statementDate">Statement Date</label>
+        <select id="inp-statementDate" class="form-select">
+          <option value="">-- Not Set --</option>
+          ${Array.from({ length: 31 }, (_, i) => i + 1).map(day => `
+            <option value="${day}" ${card && card.statementDate === day ? 'selected' : ''}>
+              ${day}${day === 1 || day === 21 || day === 31 ? 'st' : day === 2 || day === 22 ? 'nd' : day === 3 || day === 23 ? 'rd' : 'th'}
+            </option>
+          `).join('')}
+        </select>
+      </div>
+      <div class="form-group">
         <label class="form-label" for="inp-color">Card Color</label>
         <div style="display:flex;align-items:center;gap:12px;">
           <input type="color" id="inp-color" value="${card ? card.color : '#06b6d4'}" style="width:50px;height:38px;border:none;cursor:pointer;background:none;border-radius:8px;">
@@ -1471,6 +1508,8 @@ function openCardModal(cardId) {
     let owner = document.getElementById('inp-owner').value;
     const currentBalance = parseFloat(document.getElementById('inp-currentBalance').value) || 0;
     const color = document.getElementById('inp-color').value;
+    const statementDateVal = document.getElementById('inp-statementDate').value;
+    const statementDate = statementDateVal ? parseInt(statementDateVal, 10) : null;
 
     const isShared = document.getElementById('inp-isShared').checked;
     let limitGroupId = null;
@@ -1513,10 +1552,10 @@ function openCardModal(cardId) {
     if (isNaN(currentBalance)) { showToast('Balance must be a valid number.', 'error'); return; }
 
     if (card) {
-      CardManager.updateCard(card.id, { bankName, cardName, creditLimit, color, owner, limitGroupId });
+      CardManager.updateCard(card.id, { bankName, cardName, creditLimit, color, owner, limitGroupId, statementDate });
       showToast('Card updated successfully!');
     } else {
-      CardManager.addCard(bankName, cardName, creditLimit, currentBalance, color, owner, limitGroupId);
+      CardManager.addCard(bankName, cardName, creditLimit, currentBalance, color, owner, limitGroupId, statementDate);
       showToast('Card added successfully!');
     }
     closeModal();
@@ -1591,6 +1630,8 @@ function doDeleteCard(id) {
 function renderTransactions() {
   const container = document.getElementById('tab-transactions');
   const cards = DataStore.getCards();
+
+  updateHeaderUndoButton();
 
   let html = `
     <div class="section-header">
@@ -1845,8 +1886,37 @@ function doDeleteTxn(id) {
   TransactionManager.deleteTransaction(id);
   closeModal();
   showToast('Transaction deleted.');
-  renderTransactions();
+  updateHeaderUndoButton();
+  const activeTab = localStorage.getItem('cct_activeTab') || 'dashboard';
+  switchTab(activeTab);
 }
+
+function updateHeaderUndoButton() {
+  const container = document.getElementById('header-undo-container');
+  if (!container) return;
+  if (TransactionManager.lastDeletedTransaction) {
+    container.innerHTML = `
+      <button class="btn-secondary" onclick="triggerUndoDelete()" style="padding: 6px 12px; font-size: 0.75rem; border-radius: var(--radius-sm); background: rgba(244, 63, 94, 0.15); border: 1px solid rgba(244, 63, 94, 0.3); color: var(--rose); font-weight: 600; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 0 12px rgba(244, 63, 94, 0.15); cursor: pointer;">
+        <span style="font-size: 0.85rem;">↩️</span> Undo Delete
+      </button>
+    `;
+    container.style.display = 'flex';
+  } else {
+    container.innerHTML = '';
+    container.style.display = 'none';
+  }
+}
+window.updateHeaderUndoButton = updateHeaderUndoButton;
+
+function triggerUndoDelete() {
+  if (TransactionManager.undoDelete()) {
+    showToast('Transaction deletion undone!');
+    updateHeaderUndoButton();
+    const activeTab = localStorage.getItem('cct_activeTab') || 'dashboard';
+    switchTab(activeTab);
+  }
+}
+window.triggerUndoDelete = triggerUndoDelete;
 
 // ─── Rotation Tab ───────────────────────────────────────────────────────────
 
@@ -2403,6 +2473,7 @@ function init() {
   });
 
   // Restore last active tab
+  updateHeaderUndoButton();
   const lastTab = localStorage.getItem('cct_activeTab') || 'dashboard';
   switchTab(lastTab);
 
