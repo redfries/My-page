@@ -362,6 +362,19 @@ ul, ol {
   font-weight: 500;
 }
 
+/* ─── Undo Container ────────────────────────────────────── */
+#header-undo-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
 /* ─── Tab Navigation ────────────────────────────────────── */
 .tab-nav {
   display: flex;

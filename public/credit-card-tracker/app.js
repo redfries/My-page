@@ -105,6 +105,8 @@ const DataStore = {
   _cardsKey: 'cct_cards',
   _txnsKey: 'cct_transactions',
   _groupsKey: 'cct_limit_groups',
+  _deletedCardsKey: 'cct_deleted_card_ids',
+  _deletedTxnsKey: 'cct_deleted_txn_ids',
 
   getLastUpdated() {
     return parseInt(localStorage.getItem('cct_last_updated'), 10) || 0;
@@ -217,10 +219,54 @@ const DataStore = {
     return header + '\n' + rows.join('\n');
   },
 
+  getDeletedCardIds() {
+    try {
+      return JSON.parse(localStorage.getItem(this._deletedCardsKey)) || [];
+    } catch { return []; }
+  },
+
+  saveDeletedCardIds(ids) {
+    localStorage.setItem(this._deletedCardsKey, JSON.stringify(ids));
+  },
+
+  addDeletedCardId(id) {
+    const ids = this.getDeletedCardIds();
+    if (!ids.includes(id)) {
+      ids.push(id);
+      this.saveDeletedCardIds(ids);
+    }
+  },
+
+  getDeletedTxnIds() {
+    try {
+      return JSON.parse(localStorage.getItem(this._deletedTxnsKey)) || [];
+    } catch { return []; }
+  },
+
+  saveDeletedTxnIds(ids) {
+    localStorage.setItem(this._deletedTxnsKey, JSON.stringify(ids));
+  },
+
+  addDeletedTxnId(id) {
+    const ids = this.getDeletedTxnIds();
+    if (!ids.includes(id)) {
+      ids.push(id);
+      this.saveDeletedTxnIds(ids);
+    }
+  },
+
+  removeDeletedTxnId(id) {
+    let ids = this.getDeletedTxnIds();
+    ids = ids.filter(x => x !== id);
+    this.saveDeletedTxnIds(ids);
+  },
+
   clearAll() {
     localStorage.removeItem(this._cardsKey);
     localStorage.removeItem(this._txnsKey);
     localStorage.removeItem(this._groupsKey);
+    localStorage.removeItem(this._deletedCardsKey);
+    localStorage.removeItem(this._deletedTxnsKey);
   }
 };
 
@@ -366,17 +412,22 @@ const FirebaseSyncManager = {
           const remoteLastUpdated = remoteData.lastUpdated || 0;
 
           if (remoteLastUpdated > localLastUpdated) {
-            DataStore.saveCards(remoteData.cards || [], true);
-            DataStore.saveTransactions(remoteData.transactions || [], true);
-            DataStore.saveLimitGroups(remoteData.limitGroups || [], true);
-            DataStore.setLastUpdated(remoteLastUpdated);
+            // Perform smart merge to prevent offline data loss
+            this.mergeSyncData(remoteData);
+            
+            // Set the new merged timestamp slightly ahead to ensure it is propagated
+            const newTimestamp = Math.max(localLastUpdated, remoteLastUpdated) + 1;
+            DataStore.setLastUpdated(newTimestamp);
+            
             localStorage.setItem(this._lastSyncTimeKey, Date.now().toString());
-
             this.setSyncStatus('synced', new Date().toLocaleTimeString());
+            
+            // Push the merged results back to the cloud so all clients have the union
+            this.pushData();
             
             const activeTab = localStorage.getItem('cct_activeTab') || 'dashboard';
             switchTab(activeTab); 
-            showToast('Cloud Sync: Downloaded updates.');
+            showToast('Cloud Sync: Merged updates.');
           } else if (localLastUpdated > remoteLastUpdated) {
             this.pushData();
           } else {
@@ -396,6 +447,92 @@ const FirebaseSyncManager = {
       console.error('Firebase error:', err);
       this.setSyncStatus('error', err.message);
     }
+  },
+
+  mergeSyncData(remoteData) {
+    // 1. Merge Tombstone lists
+    const localDeletedCards = DataStore.getDeletedCardIds();
+    const remoteDeletedCards = remoteData.deletedCardIds || [];
+    const mergedDeletedCards = Array.from(new Set([...localDeletedCards, ...remoteDeletedCards]));
+    DataStore.saveDeletedCardIds(mergedDeletedCards);
+
+    const localDeletedTxns = DataStore.getDeletedTxnIds();
+    const remoteDeletedTxns = remoteData.deletedTxnIds || [];
+    const mergedDeletedTxns = Array.from(new Set([...localDeletedTxns, ...remoteDeletedTxns]));
+    DataStore.saveDeletedTxnIds(mergedDeletedTxns);
+
+    // 2. Merge Cards
+    const localCards = DataStore.getCards();
+    const remoteCards = remoteData.cards || [];
+    const cardsMap = {};
+    
+    remoteCards.forEach(c => {
+      if (!mergedDeletedCards.includes(c.id)) cardsMap[c.id] = c;
+    });
+    
+    localCards.forEach(c => {
+      if (mergedDeletedCards.includes(c.id)) return;
+      const existing = cardsMap[c.id];
+      if (existing) {
+        const remoteTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+        const localTime = new Date(c.updatedAt || c.createdAt || 0).getTime();
+        if (localTime > remoteTime) cardsMap[c.id] = c;
+      } else {
+        cardsMap[c.id] = c;
+      }
+    });
+    DataStore.saveCards(Object.values(cardsMap), true);
+
+    // 3. Merge Transactions
+    const localTxns = DataStore.getTransactions();
+    const remoteTxns = remoteData.transactions || [];
+    const txnsMap = {};
+    
+    remoteTxns.forEach(t => {
+      if (!mergedDeletedTxns.includes(t.id)) txnsMap[t.id] = t;
+    });
+    
+    localTxns.forEach(t => {
+      if (mergedDeletedTxns.includes(t.id)) return;
+      const existing = txnsMap[t.id];
+      if (existing) {
+        const remoteTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+        const localTime = new Date(t.updatedAt || t.createdAt || 0).getTime();
+        if (localTime > remoteTime) txnsMap[t.id] = t;
+      } else {
+        txnsMap[t.id] = t;
+      }
+    });
+    
+    const mergedTxns = Object.values(txnsMap);
+    mergedTxns.sort((a, b) => {
+      if (a.date !== b.date) return b.date > a.date ? 1 : -1;
+      return b.createdAt > a.createdAt ? 1 : -1;
+    });
+    DataStore.saveTransactions(mergedTxns, true);
+
+    // 4. Merge Limit Groups
+    const localGroups = DataStore.getLimitGroups();
+    const remoteGroups = remoteData.limitGroups || [];
+    const groupsMap = {};
+    remoteGroups.forEach(g => groupsMap[g.id] = g);
+    localGroups.forEach(g => {
+      const existing = groupsMap[g.id];
+      if (existing) {
+        const remoteTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+        const localTime = new Date(g.updatedAt || g.createdAt || 0).getTime();
+        if (localTime > remoteTime) groupsMap[g.id] = g;
+      } else {
+        groupsMap[g.id] = g;
+      }
+    });
+    DataStore.saveLimitGroups(Object.values(groupsMap), true);
+
+    // 5. Recalculate card balances
+    const finalCards = DataStore.getCards();
+    finalCards.forEach(c => {
+      CardManager.recalculateBalance(c.id);
+    });
   },
 
   triggerSyncDebounced() {
@@ -418,6 +555,8 @@ const FirebaseSyncManager = {
         cards: DataStore.getCards(),
         transactions: DataStore.getTransactions(),
         limitGroups: DataStore.getLimitGroups(),
+        deletedCardIds: DataStore.getDeletedCardIds(),
+        deletedTxnIds: DataStore.getDeletedTxnIds(),
         lastUpdated: localLastUpdated
       };
 
@@ -483,10 +622,23 @@ const CardManager = {
   deleteCard(id) {
     let cards = DataStore.getCards();
     cards = cards.filter(c => c.id !== id);
+    DataStore.addDeletedCardId(id);
     DataStore.saveCards(cards);
+
     let txns = DataStore.getTransactions();
+    const txnsToRemove = txns.filter(t => t.cardId === id);
+    txnsToRemove.forEach(t => DataStore.addDeletedTxnId(t.id));
+
     txns = txns.filter(t => t.cardId !== id);
     DataStore.saveTransactions(txns);
+
+    // Clear last deleted transaction copy if it belongs to this card
+    if (TransactionManager.lastDeletedTransaction && TransactionManager.lastDeletedTransaction.cardId === id) {
+      TransactionManager.lastDeletedTransaction = null;
+      if (typeof updateHeaderUndoButton === 'function') {
+        updateHeaderUndoButton();
+      }
+    }
   },
 
   getCard(id) {
@@ -570,6 +722,7 @@ const TransactionManager = {
     TransactionManager.lastDeletedTransaction = { ...txn };
     
     txns.splice(idx, 1);
+    DataStore.addDeletedTxnId(id); // track deleted transaction
     DataStore.saveTransactions(txns);
     this._applyBalanceEffect(txn, -1);
     return true;
@@ -582,6 +735,7 @@ const TransactionManager = {
     const txns = DataStore.getTransactions();
     const txn = this.lastDeletedTransaction;
     txns.push(txn);
+    DataStore.removeDeletedTxnId(txn.id); // untrack since it is restored
     DataStore.saveTransactions(txns);
     this._applyBalanceEffect(txn, 1);
     this.lastDeletedTransaction = null;
