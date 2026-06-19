@@ -245,7 +245,7 @@ const FirebaseSyncManager = {
   _firebaseApp: null,
 
   isEnabled() {
-    return localStorage.getItem(this._syncEnabledKey) === 'true';
+    return localStorage.getItem(this._syncEnabledKey) === 'true' && !!this.getSyncKey();
   },
 
   getSyncKey() {
