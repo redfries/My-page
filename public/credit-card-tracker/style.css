@@ -271,6 +271,97 @@ ul, ol {
   opacity: 0.6;
 }
 
+/* ─── Sync Status Indicator in Header ───────────────────── */
+.sync-indicator-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: all var(--duration-normal) var(--ease-out);
+  cursor: pointer;
+  user-select: none;
+  margin-left: 8px;
+}
+
+.sync-indicator-header:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+
+.sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--text-muted);
+  box-shadow: none;
+  transition: background-color var(--duration-normal) var(--ease-out), box-shadow var(--duration-normal) var(--ease-out);
+}
+
+.sync-indicator-header.mode-local .sync-dot {
+  background-color: var(--text-muted);
+}
+
+.sync-indicator-header.mode-syncing .sync-dot {
+  background-color: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.sync-indicator-header.mode-synced .sync-dot {
+  background-color: var(--emerald);
+  box-shadow: 0 0 8px var(--emerald);
+}
+
+.sync-indicator-header.mode-offline .sync-dot,
+.sync-indicator-header.mode-error .sync-dot {
+  background-color: var(--rose);
+  box-shadow: 0 0 8px var(--rose);
+}
+
+/* ─── Settings Tab Sync Forms ───────────────────────────── */
+.sync-setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+  animation: fadeIn var(--duration-normal) var(--ease-out);
+}
+
+.sync-status-details {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.sync-status-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.sync-status-item:last-child {
+  margin-bottom: 0;
+}
+
+.sync-status-label {
+  color: var(--text-muted);
+}
+
+.sync-status-value {
+  font-weight: 500;
+}
+
 /* ─── Tab Navigation ────────────────────────────────────── */
 .tab-nav {
   display: flex;

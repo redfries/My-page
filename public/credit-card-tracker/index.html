@@ -19,6 +19,10 @@
       <div class="app-logo">
         <div class="app-logo-icon">₹</div>
         <div class="app-title">CardTrack <span>Pro</span></div>
+        <div class="sync-indicator-header" id="sync-indicator-header" title="Cloud Sync Status">
+          <span class="sync-dot"></span>
+          <span class="sync-text">Local</span>
+        </div>
       </div>
       <nav class="tab-nav" id="tab-nav">
         <button class="tab-btn active" data-tab="dashboard">
@@ -60,6 +64,8 @@
     <div class="modal-card" id="modal-card"></div>
   </div>
 
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
   <script src="app.js?v=3"></script>
 </body>
 </html>

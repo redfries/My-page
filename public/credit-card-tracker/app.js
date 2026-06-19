@@ -106,6 +106,15 @@ const DataStore = {
   _txnsKey: 'cct_transactions',
   _groupsKey: 'cct_limit_groups',
 
+  getLastUpdated() {
+    return parseInt(localStorage.getItem('cct_last_updated'), 10) || 0;
+  },
+
+  setLastUpdated(timestamp) {
+    const ts = timestamp || Date.now();
+    localStorage.setItem('cct_last_updated', ts.toString());
+  },
+
   getCards() {
     try {
       const cards = JSON.parse(localStorage.getItem(this._cardsKey)) || [];
@@ -117,8 +126,12 @@ const DataStore = {
     } catch { return []; }
   },
 
-  saveCards(cards) {
+  saveCards(cards, skipSync = false) {
     localStorage.setItem(this._cardsKey, JSON.stringify(cards));
+    if (!skipSync) {
+      this.setLastUpdated();
+      FirebaseSyncManager.triggerSyncDebounced();
+    }
   },
 
   getLimitGroups() {
@@ -127,8 +140,12 @@ const DataStore = {
     } catch { return []; }
   },
 
-  saveLimitGroups(groups) {
+  saveLimitGroups(groups, skipSync = false) {
     localStorage.setItem(this._groupsKey, JSON.stringify(groups));
+    if (!skipSync) {
+      this.setLastUpdated();
+      FirebaseSyncManager.triggerSyncDebounced();
+    }
   },
 
   getTransactions() {
@@ -137,8 +154,12 @@ const DataStore = {
     } catch { return []; }
   },
 
-  saveTransactions(txns) {
+  saveTransactions(txns, skipSync = false) {
     localStorage.setItem(this._txnsKey, JSON.stringify(txns));
+    if (!skipSync) {
+      this.setLastUpdated();
+      FirebaseSyncManager.triggerSyncDebounced();
+    }
   },
 
   exportAll() {
@@ -200,6 +221,208 @@ const DataStore = {
     localStorage.removeItem(this._cardsKey);
     localStorage.removeItem(this._txnsKey);
     localStorage.removeItem(this._groupsKey);
+  }
+};
+
+// ─── FirebaseSyncManager ────────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyCE6hSlSx2w-pMN2IS0RuuZDrylvA5RdEc",
+  authDomain: "card-tracker-m.firebaseapp.com",
+  databaseURL: "https://card-tracker-m-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "card-tracker-m",
+  storageBucket: "card-tracker-m.firebasestorage.app",
+  messagingSenderId: "190967790222",
+  appId: "1:190967790222:web:ed13d6fd1d0f2011af27df"
+};
+
+const FirebaseSyncManager = {
+  _syncEnabledKey: 'cct_sync_enabled',
+  _syncKeyKey: 'cct_sync_key',
+  _lastSyncTimeKey: 'cct_last_sync_time',
+  _debounceTimeout: null,
+  _status: 'local', // local, syncing, synced, offline, error
+  _dbRef: null,
+  _firebaseApp: null,
+
+  isEnabled() {
+    return localStorage.getItem(this._syncEnabledKey) === 'true';
+  },
+
+  getSyncKey() {
+    return localStorage.getItem(this._syncKeyKey) || '';
+  },
+
+  getLastSyncTime() {
+    return parseInt(localStorage.getItem(this._lastSyncTimeKey), 10) || 0;
+  },
+
+  setSyncStatus(status, details = '') {
+    this._status = status;
+    const badge = document.getElementById('sync-indicator-header');
+    if (!badge) return;
+
+    badge.className = 'sync-indicator-header'; // reset
+    const dot = badge.querySelector('.sync-dot');
+    const text = badge.querySelector('.sync-text');
+
+    if (status === 'local') {
+      badge.classList.add('mode-local');
+      text.textContent = 'Local';
+      badge.title = 'Offline local-only mode. Configure sync in Settings.';
+    } else if (status === 'syncing') {
+      badge.classList.add('mode-syncing');
+      text.textContent = 'Syncing...';
+      badge.title = 'Connecting to Firebase...';
+    } else if (status === 'synced') {
+      badge.classList.add('mode-synced');
+      text.textContent = 'Synced';
+      const timeStr = details ? ` (Last: ${details})` : '';
+      badge.title = `Data is synced with Firebase${timeStr}. Click to sync now.`;
+    } else if (status === 'offline') {
+      badge.classList.add('mode-offline');
+      text.textContent = 'Offline';
+      badge.title = 'Offline. Will retry when connected.';
+    } else if (status === 'error') {
+      badge.classList.add('mode-error');
+      text.textContent = 'Sync Error';
+      badge.title = `Sync error: ${details}. Check settings.`;
+    }
+  },
+
+  initFirebase() {
+    if (this._firebaseApp) return true;
+    try {
+      if (typeof firebase === 'undefined') {
+        throw new Error('Firebase SDK not loaded. Check connection.');
+      }
+      if (firebase.apps.length === 0) {
+        this._firebaseApp = firebase.initializeApp(firebaseConfig);
+      } else {
+        this._firebaseApp = firebase.app();
+      }
+      return true;
+    } catch (err) {
+      console.error('Firebase init error:', err);
+      this.setSyncStatus('error', err.message);
+      return false;
+    }
+  },
+
+  async connect(syncKey) {
+    if (!syncKey) {
+      throw new Error('Sync Key cannot be empty');
+    }
+    localStorage.setItem(this._syncKeyKey, syncKey);
+    localStorage.setItem(this._syncEnabledKey, 'true');
+    this.setSyncStatus('syncing');
+
+    if (this.initFirebase()) {
+      this.listen();
+    }
+  },
+
+  disconnect() {
+    if (this._dbRef) {
+      this._dbRef.off();
+      this._dbRef = null;
+    }
+    localStorage.removeItem(this._syncKeyKey);
+    localStorage.setItem(this._syncEnabledKey, 'false');
+    localStorage.removeItem(this._lastSyncTimeKey);
+    this.setSyncStatus('local');
+  },
+
+  listen() {
+    if (!this.isEnabled()) return;
+    const syncKey = this.getSyncKey();
+    if (!syncKey) return;
+
+    if (!this.initFirebase()) return;
+
+    try {
+      if (this._dbRef) {
+        this._dbRef.off();
+      }
+
+      this._dbRef = firebase.database().ref(`sync_data/${syncKey}`);
+      this.setSyncStatus('syncing');
+
+      this._dbRef.on('value', snapshot => {
+        const remoteData = snapshot.val();
+        const localLastUpdated = DataStore.getLastUpdated();
+
+        if (!remoteData) {
+          this.pushData();
+        } else {
+          const remoteLastUpdated = remoteData.lastUpdated || 0;
+
+          if (remoteLastUpdated > localLastUpdated) {
+            DataStore.saveCards(remoteData.cards || [], true);
+            DataStore.saveTransactions(remoteData.transactions || [], true);
+            DataStore.saveLimitGroups(remoteData.limitGroups || [], true);
+            DataStore.setLastUpdated(remoteLastUpdated);
+            localStorage.setItem(this._lastSyncTimeKey, Date.now().toString());
+
+            this.setSyncStatus('synced', new Date().toLocaleTimeString());
+            
+            const activeTab = localStorage.getItem('cct_activeTab') || 'dashboard';
+            switchTab(activeTab); 
+            showToast('Cloud Sync: Downloaded updates.');
+          } else if (localLastUpdated > remoteLastUpdated) {
+            this.pushData();
+          } else {
+            localStorage.setItem(this._lastSyncTimeKey, Date.now().toString());
+            this.setSyncStatus('synced', new Date().toLocaleTimeString());
+          }
+        }
+      }, err => {
+        console.error('Firebase listen error:', err);
+        if (!navigator.onLine) {
+          this.setSyncStatus('offline');
+        } else {
+          this.setSyncStatus('error', err.message);
+        }
+      });
+    } catch (err) {
+      console.error('Firebase error:', err);
+      this.setSyncStatus('error', err.message);
+    }
+  },
+
+  triggerSyncDebounced() {
+    if (!this.isEnabled()) return;
+    if (this._debounceTimeout) clearTimeout(this._debounceTimeout);
+    this._debounceTimeout = setTimeout(() => {
+      this.pushData();
+    }, 1500);
+  },
+
+  async pushData() {
+    if (!this.isEnabled()) return;
+    const syncKey = this.getSyncKey();
+    if (!syncKey) return;
+    if (!this.initFirebase()) return;
+
+    try {
+      const localLastUpdated = DataStore.getLastUpdated();
+      const backupData = {
+        cards: DataStore.getCards(),
+        transactions: DataStore.getTransactions(),
+        limitGroups: DataStore.getLimitGroups(),
+        lastUpdated: localLastUpdated
+      };
+
+      await firebase.database().ref(`sync_data/${syncKey}`).set(backupData);
+      localStorage.setItem(this._lastSyncTimeKey, Date.now().toString());
+      this.setSyncStatus('synced', new Date().toLocaleTimeString());
+    } catch (err) {
+      console.error('Firebase push error:', err);
+      if (!navigator.onLine) {
+        this.setSyncStatus('offline');
+      } else {
+        this.setSyncStatus('error', err.message);
+      }
+    }
   }
 };
 
@@ -1677,6 +1900,69 @@ function renderSettings() {
   const cards = DataStore.getCards();
   const txns = DataStore.getTransactions();
 
+  let syncCardHtml = '';
+  if (FirebaseSyncManager.isEnabled()) {
+    const lastSyncTime = FirebaseSyncManager.getLastSyncTime();
+    const lastSyncStr = lastSyncTime ? new Date(lastSyncTime).toLocaleTimeString() : 'Never';
+    const syncKey = FirebaseSyncManager.getSyncKey();
+    const maskedSyncKey = syncKey ? (syncKey.length > 8 ? `${syncKey.slice(0, 4)}...${syncKey.slice(-4)}` : syncKey) : 'None';
+    let statusColorClass = 'text-cyan';
+    if (FirebaseSyncManager._status === 'synced') statusColorClass = 'text-green';
+    if (FirebaseSyncManager._status === 'error' || FirebaseSyncManager._status === 'offline') statusColorClass = 'text-red';
+
+    syncCardHtml = `
+      <div class="glass-card settings-card">
+        <div class="settings-card-title">🔥 Firebase Cloud Sync</div>
+        <div class="settings-card-desc">Sync is enabled and connected to Firebase.</div>
+        
+        <div class="sync-status-details">
+          <div class="sync-status-item">
+            <span class="sync-status-label">Status:</span>
+            <span class="sync-status-value ${statusColorClass}" style="font-weight: 700; text-transform: uppercase;">
+              ${FirebaseSyncManager._status}
+            </span>
+          </div>
+          <div class="sync-status-item">
+            <span class="sync-status-label">Sync Key:</span>
+            <span class="sync-status-value" style="font-family: monospace; font-size: 0.75rem;" title="${syncKey}">
+              ${maskedSyncKey}
+            </span>
+          </div>
+          <div class="sync-status-item">
+            <span class="sync-status-label">Last Sync:</span>
+            <span class="sync-status-value">${lastSyncStr}</span>
+          </div>
+        </div>
+
+        <div class="settings-actions">
+          <button class="btn-primary" onclick="triggerManualSync()">Sync Now</button>
+          <button class="btn-danger" style="padding: 10px 18px;" onclick="disconnectSync()">Disconnect</button>
+        </div>
+      </div>
+    `;
+  } else {
+    syncCardHtml = `
+      <div class="glass-card settings-card">
+        <div class="settings-card-title">🔥 Firebase Cloud Sync</div>
+        <div class="settings-card-desc">Sync your data in real-time across all your devices using a simple Sync Key.</div>
+        
+        <div class="sync-setup-form">
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" style="font-size: 0.7rem;">Enter Sync Key / PIN</label>
+            <input type="text" id="sync-key" class="form-input" placeholder="e.g. secret-tracker-123" style="font-family: monospace; font-size: 0.8rem;">
+            <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; line-height: 1.3;">
+              Choose any unique name/phrase. Use the <strong>same key</strong> on all devices to sync them.
+            </div>
+          </div>
+          
+          <div class="settings-actions" style="margin-top: 4px;">
+            <button class="btn-primary" style="width: 100%; justify-content: center;" onclick="setupSync(event)">Enable Sync</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   container.innerHTML = `
     <div class="section-header">
       <div>
@@ -1693,6 +1979,8 @@ function renderSettings() {
           <strong class="text-cyan">${txns.length}</strong> transaction${txns.length !== 1 ? 's' : ''}
         </div>
       </div>
+
+      ${syncCardHtml}
 
       <div class="glass-card settings-card">
         <div class="settings-card-title">💾 Export Backup</div>
@@ -1736,6 +2024,55 @@ function renderSettings() {
       </div>
     </div>
   `;
+}
+
+// ─── Settings Support & Helper Functions ────────────────────────────────────
+
+async function setupSync(event) {
+  event.preventDefault();
+  const keyInput = document.getElementById('sync-key');
+  const syncKey = keyInput ? keyInput.value.trim() : '';
+
+  if (!syncKey) {
+    showToast('Please enter a Sync Key / PIN', 'error');
+    return;
+  }
+
+  showToast('Connecting to Firebase...');
+  
+  try {
+    await FirebaseSyncManager.connect(syncKey);
+    showToast('Sync connected successfully!');
+    renderSettings();
+  } catch (err) {
+    console.error(err);
+    showToast('Failed to connect: ' + err.message, 'error');
+  }
+}
+
+async function triggerManualSync() {
+  showToast('Syncing data...');
+  await FirebaseSyncManager.pushData();
+  renderSettings();
+}
+
+function disconnectSync() {
+  const html = `
+    <div class="modal-title text-red">🔄 Disconnect Cloud Sync?</div>
+    <p style="color: var(--text-secondary); margin: 16px 0;">We will stop syncing your data with Firebase. Your local data on this browser will remain untouched.</p>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-danger" onclick="doActualDisconnect()">Disconnect Sync</button>
+    </div>
+  `;
+  openModal(html);
+}
+
+function doActualDisconnect() {
+  FirebaseSyncManager.disconnect();
+  closeModal();
+  showToast('Sync disconnected.');
+  renderSettings();
 }
 
 function doExportJSON() {
@@ -1982,9 +2319,39 @@ function init() {
     }
   });
 
+  // Initialize Sync Indicator badge
+  const lastSyncTime = FirebaseSyncManager.getLastSyncTime();
+  FirebaseSyncManager.setSyncStatus(
+    FirebaseSyncManager.isEnabled() ? 'synced' : 'local',
+    lastSyncTime ? new Date(lastSyncTime).toLocaleTimeString() : ''
+  );
+
+  // Manual click on sync badge in header triggers sync
+  document.getElementById('sync-indicator-header').addEventListener('click', () => {
+    if (FirebaseSyncManager.isEnabled()) {
+      triggerManualSync();
+    } else {
+      // Go to Settings tab if not enabled so they can configure it
+      switchTab('settings');
+      showToast('Configure cloud sync here!', 'info');
+    }
+  });
+
   // Restore last active tab
   const lastTab = localStorage.getItem('cct_activeTab') || 'dashboard';
   switchTab(lastTab);
+
+  // Start Firebase listener on load if enabled
+  if (FirebaseSyncManager.isEnabled()) {
+    FirebaseSyncManager.listen();
+  }
+
+  // Ensure listener is active/checked on refocus
+  window.addEventListener('focus', () => {
+    if (FirebaseSyncManager.isEnabled()) {
+      FirebaseSyncManager.listen();
+    }
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);
