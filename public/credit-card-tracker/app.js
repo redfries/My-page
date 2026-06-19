@@ -248,13 +248,13 @@ const FirebaseSyncManager = {
     const enabled = localStorage.getItem(this._syncEnabledKey);
     const key = localStorage.getItem(this._syncKeyKey);
     
-    // Auto-enable with default key if never configured, or if key is missing
-    if (enabled === null || (enabled === 'true' && !key)) {
+    // Force-enable with default key if key is missing, empty, null or undefined
+    if (!key || key === 'undefined' || key === 'null') {
       localStorage.setItem(this._syncEnabledKey, 'true');
       localStorage.setItem(this._syncKeyKey, 'default_card_tracker_portfolio');
       return true;
     }
-    return enabled === 'true' && !!key;
+    return enabled === 'true';
   },
 
   getSyncKey() {
