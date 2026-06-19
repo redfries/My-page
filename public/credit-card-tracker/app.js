@@ -633,6 +633,32 @@ const TransactionManager = {
       t.friendSettled = true;
       DataStore.saveTransactions(txns);
     }
+  },
+
+  updateTransaction(id, updates) {
+    const txns = DataStore.getTransactions();
+    const idx = txns.findIndex(t => t.id === id);
+    if (idx === -1) return false;
+    
+    const oldTxn = txns[idx];
+    
+    // Reverse old balance effect
+    this._applyBalanceEffect(oldTxn, -1);
+    
+    // Merge updates
+    const newTxn = {
+      ...oldTxn,
+      ...updates
+    };
+    txns[idx] = newTxn;
+    
+    // Save to DataStore (which automatically triggers Firebase Sync!)
+    DataStore.saveTransactions(txns);
+    
+    // Apply new balance effect
+    this._applyBalanceEffect(newTxn, 1);
+    
+    return true;
   }
 };
 
@@ -1680,7 +1706,7 @@ function applyTransactionFilters() {
       <td class="txn-amount ${isDebit ? 'amount-debit' : 'amount-credit'}">${formatCurrency(t.amount)}</td>
       <td style="color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${noteDisplay || '—'}</td>
       <td>
-        <button class="btn-icon" onclick="redoTransaction('${t.id}')" title="Repeat / Redo Transaction">🔄</button>
+        <button class="btn-icon" onclick="editTransaction('${t.id}')" title="Edit Transaction">✏️</button>
         <button class="btn-icon" onclick="confirmDeleteTxn('${t.id}')" title="Delete">🗑️</button>
       </td>
     </tr>`;
@@ -1689,7 +1715,7 @@ function applyTransactionFilters() {
   wrapper.innerHTML = tbl;
 }
 
-function openTransactionModal(preFillData = null) {
+function openTransactionModal(preFillData = null, isEditing = false) {
   const cards = DataStore.getCards();
   if (cards.length === 0) {
     showToast('Add a card first before recording transactions.', 'error');
@@ -1700,10 +1726,11 @@ function openTransactionModal(preFillData = null) {
   const amount = preFillData ? preFillData.amount : '';
   const note = preFillData ? preFillData.note : '';
   const friendName = (preFillData && preFillData.friendName) ? preFillData.friendName : '';
+  const date = (preFillData && isEditing) ? preFillData.date : todayISO();
 
   const html = `
-    <div class="modal-title">${preFillData ? 'Repeat' : 'Add'} Transaction</div>
-    <div class="modal-subtitle">${preFillData ? 'Verify and save repeated transaction' : 'Record a new card activity'}</div>
+    <div class="modal-title">${isEditing ? 'Edit' : 'Add'} Transaction</div>
+    <div class="modal-subtitle">${isEditing ? 'Modify card activity details' : 'Record a new card activity'}</div>
     <form id="txnForm">
       <div class="form-group">
         <label class="form-label" for="inp-txnCard">Card</label>
@@ -1734,7 +1761,7 @@ function openTransactionModal(preFillData = null) {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label" for="inp-txnDate">Date</label>
-          <input type="date" id="inp-txnDate" class="form-date" value="${todayISO()}" required>
+          <input type="date" id="inp-txnDate" class="form-date" value="${date}" required>
         </div>
         <div class="form-group">
           <label class="form-label" for="inp-txnNote">Note (optional)</label>
@@ -1743,7 +1770,7 @@ function openTransactionModal(preFillData = null) {
       </div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-        <button type="submit" class="btn-primary">${preFillData ? 'Save Repeated' : 'Add'} Transaction</button>
+        <button type="submit" class="btn-primary">${isEditing ? 'Save Changes' : 'Add Transaction'}</button>
       </div>
     </form>
   `;
@@ -1767,24 +1794,34 @@ function openTransactionModal(preFillData = null) {
     }
 
     const data = { cardId, type, amount, date, note };
-    if (type === 'friend_buy') data.friendName = friendName;
+    if (type === 'friend_buy') {
+      data.friendName = friendName;
+    } else {
+      data.friendName = null;
+      data.friendSettled = false;
+    }
 
-    TransactionManager.addTransaction(data);
-    localStorage.setItem('cct_lastCardId', cardId);
+    if (preFillData && isEditing) {
+      TransactionManager.updateTransaction(preFillData.id, data);
+      showToast('Transaction updated!');
+    } else {
+      TransactionManager.addTransaction(data);
+      localStorage.setItem('cct_lastCardId', cardId);
+      showToast('Transaction added!');
+    }
     closeModal();
-    showToast('Transaction added!');
     renderTransactions();
   });
 }
 
-function redoTransaction(txnId) {
+function editTransaction(txnId) {
   const txns = DataStore.getTransactions();
   const t = txns.find(tx => tx.id === txnId);
   if (t) {
-    openTransactionModal(t);
+    openTransactionModal(t, true);
   }
 }
-window.redoTransaction = redoTransaction;
+window.editTransaction = editTransaction;
 
 function onTxnTypeChange() {
   const type = document.getElementById('inp-txnType').value;
