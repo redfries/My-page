@@ -435,9 +435,8 @@ const FirebaseSyncManager = {
               this._isMerging = false;
             }
 
-            // Only push back if we contributed new data OR we just cleaned duplicates
-            // (cleaning dupes means Firebase still has corrupted data — we must overwrite it)
-            if (this._lastMergeHadDupes || this._mergeContributedNewData(remoteData)) {
+            // Only push back if we contributed new data the remote didn't have
+            if (this._mergeContributedNewData(remoteData)) {
               setTimeout(() => this.pushData(), 2000);
             }
           } else if (localLastUpdated > remoteLastUpdated) {
@@ -554,9 +553,6 @@ const FirebaseSyncManager = {
       c.currentBalance = balance;
     });
     DataStore.saveCards(finalCards, true); // skipSync = true — critical!
-
-    // After merge, dedup any duplicates that came from Firebase (sets _lastMergeHadDupes)
-    this._lastMergeHadDupes = cleanupDuplicates();
   },
 
   triggerSyncDebounced() {
@@ -2261,6 +2257,7 @@ function renderSettings() {
 
         <div class="settings-actions">
           <button class="btn-primary" onclick="triggerManualSync()">Sync Now</button>
+          <button class="btn-secondary" style="padding: 10px 18px;" onclick="forceCleanAndSync()">🔧 Fix Duplicates</button>
           <button class="btn-danger" style="padding: 10px 18px;" onclick="disconnectSync()">Disconnect</button>
         </div>
       </div>
@@ -2378,6 +2375,17 @@ async function setupSync(event) {
 async function triggerManualSync() {
   showToast('Syncing data...');
   await FirebaseSyncManager.pushData();
+  renderSettings();
+}
+
+async function forceCleanAndSync() {
+  const cleaned = cleanupDuplicates();
+  // Set a timestamp guaranteed to beat anything in Firebase, so clean data always wins
+  localStorage.setItem('cct_last_updated', Date.now() + 999999);
+  await FirebaseSyncManager.pushData();
+  const activeTab = localStorage.getItem('cct_activeTab') || 'dashboard';
+  switchTab(activeTab);
+  showToast(cleaned ? '✅ Duplicates removed and synced!' : '✅ No duplicates found — data is clean!', 'success');
   renderSettings();
 }
 
