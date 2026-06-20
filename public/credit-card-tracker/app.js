@@ -100,69 +100,66 @@ function getCardLabel(c, includeOwner = true) {
 }
 
 // ─── DataStore ──────────────────────────────────────────────────────────────
+// In-memory arrays are the source of truth for reads (instant/synchronous).
+// Writes diff against the cache and fire individual Firestore document writes.
 
 const DataStore = {
-  _cardsKey: 'cct_cards',
-  _txnsKey: 'cct_transactions',
-  _groupsKey: 'cct_limit_groups',
-  _deletedCardsKey: 'cct_deleted_card_ids',
-  _deletedTxnsKey: 'cct_deleted_txn_ids',
-
-  getLastUpdated() {
-    return parseInt(localStorage.getItem('cct_last_updated'), 10) || 0;
-  },
-
-  setLastUpdated(timestamp) {
-    const ts = timestamp || Date.now();
-    localStorage.setItem('cct_last_updated', ts.toString());
-  },
+  _cards: [],
+  _transactions: [],
+  _limitGroups: [],
 
   getCards() {
-    try {
-      const cards = JSON.parse(localStorage.getItem(this._cardsKey)) || [];
-      return cards.map(c => ({
-        owner: 'Self',
-        limitGroupId: null,
-        ...c
-      }));
-    } catch { return []; }
+    return this._cards.map(c => ({ owner: 'Self', limitGroupId: null, ...c }));
   },
+  getTransactions() { return [...this._transactions]; },
+  getLimitGroups()   { return [...this._limitGroups]; },
 
-  saveCards(cards, skipSync = false) {
-    localStorage.setItem(this._cardsKey, JSON.stringify(cards));
-    if (!skipSync) {
-      this.setLastUpdated();
-      FirebaseSyncManager.triggerSyncDebounced();
+  saveCards(newCards, _skipSync) {
+    const oldMap = Object.fromEntries(this._cards.map(c => [c.id, c]));
+    for (const card of newCards) {
+      if (JSON.stringify(oldMap[card.id]) !== JSON.stringify(card))
+        FirestoreSync.set('cards', card.id, card);
     }
+    const newIds = new Set(newCards.map(c => c.id));
+    for (const id of Object.keys(oldMap))
+      if (!newIds.has(id)) FirestoreSync.del('cards', id);
+    this._cards = [...newCards];
   },
 
-  getLimitGroups() {
-    try {
-      return JSON.parse(localStorage.getItem(this._groupsKey)) || [];
-    } catch { return []; }
-  },
-
-  saveLimitGroups(groups, skipSync = false) {
-    localStorage.setItem(this._groupsKey, JSON.stringify(groups));
-    if (!skipSync) {
-      this.setLastUpdated();
-      FirebaseSyncManager.triggerSyncDebounced();
+  saveTransactions(newTxns, _skipSync) {
+    const oldMap = Object.fromEntries(this._transactions.map(t => [t.id, t]));
+    for (const txn of newTxns) {
+      if (JSON.stringify(oldMap[txn.id]) !== JSON.stringify(txn))
+        FirestoreSync.set('transactions', txn.id, txn);
     }
+    const newIds = new Set(newTxns.map(t => t.id));
+    for (const id of Object.keys(oldMap))
+      if (!newIds.has(id)) FirestoreSync.del('transactions', id);
+    this._transactions = [...newTxns];
   },
 
-  getTransactions() {
-    try {
-      return JSON.parse(localStorage.getItem(this._txnsKey)) || [];
-    } catch { return []; }
-  },
-
-  saveTransactions(txns, skipSync = false) {
-    localStorage.setItem(this._txnsKey, JSON.stringify(txns));
-    if (!skipSync) {
-      this.setLastUpdated();
-      FirebaseSyncManager.triggerSyncDebounced();
+  saveLimitGroups(newGroups, _skipSync) {
+    const oldMap = Object.fromEntries(this._limitGroups.map(g => [g.id, g]));
+    for (const group of newGroups) {
+      if (JSON.stringify(oldMap[group.id]) !== JSON.stringify(group))
+        FirestoreSync.set('limitGroups', group.id, group);
     }
+    const newIds = new Set(newGroups.map(g => g.id));
+    for (const id of Object.keys(oldMap))
+      if (!newIds.has(id)) FirestoreSync.del('limitGroups', id);
+    this._limitGroups = [...newGroups];
   },
+
+  // Stubs — tombstones not needed with per-document Firestore
+  getDeletedCardIds() { return []; },
+  saveDeletedCardIds() {},
+  addDeletedCardId() {},
+  getDeletedTxnIds()  { return []; },
+  saveDeletedTxnIds() {},
+  addDeletedTxnId()   {},
+  removeDeletedTxnId() {},
+  getLastUpdated()    { return 0; },
+  setLastUpdated()    {},
 
   exportAll() {
     return JSON.stringify({
@@ -176,19 +173,14 @@ const DataStore = {
   importAll(jsonString) {
     try {
       const data = JSON.parse(jsonString);
-      if (!data || !Array.isArray(data.cards) || !Array.isArray(data.transactions)) {
+      if (!data || !Array.isArray(data.cards) || !Array.isArray(data.transactions))
         return { success: false, error: 'Invalid backup format. Expected {cards[], transactions[]}.' };
-      }
-      for (const c of data.cards) {
-        if (!c.id || !c.bankName || !c.cardName || c.creditLimit == null) {
+      for (const c of data.cards)
+        if (!c.id || !c.bankName || !c.cardName || c.creditLimit == null)
           return { success: false, error: 'One or more cards have missing required fields.' };
-        }
-      }
-      for (const t of data.transactions) {
-        if (!t.id || !t.cardId || !t.type || t.amount == null) {
+      for (const t of data.transactions)
+        if (!t.id || !t.cardId || !t.type || t.amount == null)
           return { success: false, error: 'One or more transactions have missing required fields.' };
-        }
-      }
       this.saveCards(data.cards);
       this.saveTransactions(data.transactions);
       this.saveLimitGroups(data.limitGroups || []);
@@ -200,471 +192,166 @@ const DataStore = {
 
   exportCSV() {
     const txns = this.getTransactions();
-    const cards = this.getCards();
     const cardMap = {};
-    cards.forEach(c => cardMap[c.id] = getCardLabel(c));
+    this.getCards().forEach(c => cardMap[c.id] = getCardLabel(c));
     const header = 'Date,Card,Type,Amount,Note,Friend Name,Friend Settled';
-    const rows = txns.map(t => {
-      const row = [
-        t.date,
-        '"' + (cardMap[t.cardId] || 'Unknown').replace(/"/g, '""') + '"',
-        t.type,
-        t.amount,
-        '"' + (t.note || '').replace(/"/g, '""') + '"',
-        '"' + (t.friendName || '').replace(/"/g, '""') + '"',
-        t.friendSettled ? 'Yes' : (t.type === 'friend_buy' ? 'No' : '')
-      ];
-      return row.join(',');
-    });
+    const rows = txns.map(t => [
+      t.date,
+      '"' + (cardMap[t.cardId] || 'Unknown').replace(/"/g, '""') + '"',
+      t.type, t.amount,
+      '"' + (t.note || '').replace(/"/g, '""') + '"',
+      '"' + (t.friendName || '').replace(/"/g, '""') + '"',
+      t.friendSettled ? 'Yes' : (t.type === 'friend_buy' ? 'No' : '')
+    ].join(','));
     return header + '\n' + rows.join('\n');
   },
 
-  getDeletedCardIds() {
-    try {
-      return JSON.parse(localStorage.getItem(this._deletedCardsKey)) || [];
-    } catch { return []; }
-  },
-
-  saveDeletedCardIds(ids) {
-    localStorage.setItem(this._deletedCardsKey, JSON.stringify(ids));
-  },
-
-  addDeletedCardId(id) {
-    const ids = this.getDeletedCardIds();
-    if (!ids.includes(id)) {
-      ids.push(id);
-      this.saveDeletedCardIds(ids);
-    }
-  },
-
-  getDeletedTxnIds() {
-    try {
-      return JSON.parse(localStorage.getItem(this._deletedTxnsKey)) || [];
-    } catch { return []; }
-  },
-
-  saveDeletedTxnIds(ids) {
-    localStorage.setItem(this._deletedTxnsKey, JSON.stringify(ids));
-  },
-
-  addDeletedTxnId(id) {
-    const ids = this.getDeletedTxnIds();
-    if (!ids.includes(id)) {
-      ids.push(id);
-      this.saveDeletedTxnIds(ids);
-    }
-  },
-
-  removeDeletedTxnId(id) {
-    let ids = this.getDeletedTxnIds();
-    ids = ids.filter(x => x !== id);
-    this.saveDeletedTxnIds(ids);
-  },
-
   clearAll() {
-    localStorage.removeItem(this._cardsKey);
-    localStorage.removeItem(this._txnsKey);
-    localStorage.removeItem(this._groupsKey);
-    localStorage.removeItem(this._deletedCardsKey);
-    localStorage.removeItem(this._deletedTxnsKey);
+    [...this._cards].forEach(c => FirestoreSync.del('cards', c.id));
+    [...this._transactions].forEach(t => FirestoreSync.del('transactions', t.id));
+    [...this._limitGroups].forEach(g => FirestoreSync.del('limitGroups', g.id));
+    this._cards = [];
+    this._transactions = [];
+    this._limitGroups = [];
   }
 };
 
-// ─── FirebaseSyncManager ────────────────────────────────────────────────────
+// ─── FirestoreSync ──────────────────────────────────────────────────────────
+// Per-document Firestore sync. Each card/transaction/limitGroup is its own
+// document. onSnapshot listeners update the in-memory cache in real-time.
+// hasPendingWrites filter prevents self-loops — no merge logic needed.
+
 const firebaseConfig = {
   apiKey: "AIzaSyCE6hSlSx2w-pMN2IS0RuuZDrylvA5RdEc",
   authDomain: "card-tracker-m.firebaseapp.com",
-  databaseURL: "https://card-tracker-m-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "card-tracker-m",
   storageBucket: "card-tracker-m.firebasestorage.app",
   messagingSenderId: "190967790222",
   appId: "1:190967790222:web:ed13d6fd1d0f2011af27df"
 };
 
-const FirebaseSyncManager = {
-  _syncEnabledKey: 'cct_sync_enabled',
-  _syncKeyKey: 'cct_sync_key',
-  _lastSyncTimeKey: 'cct_last_sync_time',
-  _debounceTimeout: null,
-  _isMerging: false,
-  _remoteWasCleaned: false, // set by _cleanPayload when remote had duplicates
-  _status: 'local', // local, syncing, synced, offline, error
-  _dbRef: null,
-  _firebaseApp: null,
+const FirestoreSync = {
+  _db: null,
+  _syncKey: 'default_card_tracker_portfolio',
+  _status: 'local',
+  _unsubscribers: [],
+  _loadedCollections: new Set(),
 
-  isEnabled() {
-    const enabled = localStorage.getItem(this._syncEnabledKey);
-    const key = localStorage.getItem(this._syncKeyKey);
-    
-    // Force-enable with default key if key is missing, empty, null or undefined
-    if (!key || key === 'undefined' || key === 'null') {
-      localStorage.setItem(this._syncEnabledKey, 'true');
-      localStorage.setItem(this._syncKeyKey, 'default_card_tracker_portfolio');
-      return true;
-    }
-    return enabled === 'true';
+  isEnabled()      { return true; },
+  getSyncKey()     { return this._syncKey; },
+  getLastSyncTime(){ return parseInt(localStorage.getItem('cct_last_sync_time'), 10) || 0; },
+  // Stubs for backward compat with settings UI calls
+  triggerSyncDebounced() {},
+  pushData()       { return Promise.resolve(); },
+
+  init() {
+    if (typeof firebase === 'undefined') { console.error('Firebase SDK not loaded'); return; }
+    if (firebase.apps.length === 0) firebase.initializeApp(firebaseConfig);
+    this._db = firebase.firestore();
+    this._db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+    this._syncKey = localStorage.getItem('cct_sync_key') || 'default_card_tracker_portfolio';
+    this._startListeners();
+    this.setSyncStatus('syncing');
   },
 
-  getSyncKey() {
-    return localStorage.getItem(this._syncKeyKey) || '';
+  _col(name) {
+    return this._db.collection(`tracker_data/${this._syncKey}/${name}`);
   },
 
-  getLastSyncTime() {
-    return parseInt(localStorage.getItem(this._lastSyncTimeKey), 10) || 0;
+  set(col, id, data) {
+    if (!this._db) return;
+    this._col(col).doc(id).set(data).catch(e => console.error('Firestore write error:', e));
+  },
+
+  del(col, id) {
+    if (!this._db) return;
+    this._col(col).doc(id).delete().catch(e => console.error('Firestore delete error:', e));
+  },
+
+  _startListeners() {
+    const listen = (colName, arr) => {
+      const unsub = this._col(colName).onSnapshot(
+        { includeMetadataChanges: true },
+        snap => {
+          // Skip snapshots caused by our own pending writes (already in memory)
+          if (snap.metadata.hasPendingWrites) return;
+
+          snap.docChanges().forEach(change => {
+            const doc = change.doc.data();
+            const idx = arr.findIndex(x => x.id === (doc.id || change.doc.id));
+            if (change.type === 'removed') {
+              if (idx >= 0) arr.splice(idx, 1);
+            } else {
+              if (idx >= 0) arr[idx] = doc; else arr.push(doc);
+            }
+          });
+
+          this._loadedCollections.add(colName);
+          localStorage.setItem('cct_last_sync_time', Date.now());
+          this.setSyncStatus('synced', new Date().toLocaleTimeString());
+
+          // Re-render once all collections have loaded at least once
+          if (this._loadedCollections.size === 3) {
+            const activeTab = localStorage.getItem('cct_activeTab') || 'dashboard';
+            switchTab(activeTab);
+          }
+        },
+        err => {
+          console.error(`Firestore ${colName} listener error:`, err);
+          this.setSyncStatus('error', err.message);
+        }
+      );
+      this._unsubscribers.push(unsub);
+    };
+
+    listen('cards',       DataStore._cards);
+    listen('transactions', DataStore._transactions);
+    listen('limitGroups', DataStore._limitGroups);
   },
 
   setSyncStatus(status, details = '') {
     this._status = status;
     const badge = document.getElementById('sync-indicator-header');
     if (!badge) return;
-
-    badge.className = 'sync-indicator-header'; // reset
-    const dot = badge.querySelector('.sync-dot');
+    badge.className = 'sync-indicator-header';
     const text = badge.querySelector('.sync-text');
-
-    if (status === 'local') {
-      badge.classList.add('mode-local');
-      text.textContent = 'Local';
-      badge.title = 'Offline local-only mode. Configure sync in Settings.';
-    } else if (status === 'syncing') {
-      badge.classList.add('mode-syncing');
-      text.textContent = 'Syncing...';
-      badge.title = 'Connecting to Firebase...';
-    } else if (status === 'synced') {
-      badge.classList.add('mode-synced');
-      text.textContent = 'Synced';
-      const timeStr = details ? ` (Last: ${details})` : '';
-      badge.title = `Data is synced with Firebase${timeStr}. Click to sync now.`;
-    } else if (status === 'offline') {
-      badge.classList.add('mode-offline');
-      text.textContent = 'Offline';
-      badge.title = 'Offline. Will retry when connected.';
-    } else if (status === 'error') {
-      badge.classList.add('mode-error');
-      text.textContent = 'Sync Error';
-      badge.title = `Sync error: ${details}. Check settings.`;
-    }
+    const statusMap = {
+      syncing: ['mode-syncing', 'Syncing…',    'Connecting to Firestore…'],
+      synced:  ['mode-synced',  'Live',         `Live sync active${details ? ' · ' + details : ''}`],
+      error:   ['mode-error',   'Sync Error',   `Sync error: ${details}`],
+      local:   ['mode-local',   'Local',        'Offline local-only mode'],
+    };
+    const [cls, label, title] = statusMap[status] || statusMap.local;
+    badge.classList.add(cls);
+    text.textContent = label;
+    badge.title = title;
   },
 
-  initFirebase() {
-    if (this._firebaseApp) return true;
-    try {
-      if (typeof firebase === 'undefined') {
-        throw new Error('Firebase SDK not loaded. Check connection.');
-      }
-      if (firebase.apps.length === 0) {
-        this._firebaseApp = firebase.initializeApp(firebaseConfig);
-      } else {
-        this._firebaseApp = firebase.app();
-      }
-      return true;
-    } catch (err) {
-      console.error('Firebase init error:', err);
-      this.setSyncStatus('error', err.message);
-      return false;
-    }
-  },
-
-  async connect(syncKey) {
-    if (!syncKey) {
-      throw new Error('Sync Key cannot be empty');
-    }
-    localStorage.setItem(this._syncKeyKey, syncKey);
-    localStorage.setItem(this._syncEnabledKey, 'true');
+  connect(syncKey) {
+    if (!syncKey) throw new Error('Sync Key cannot be empty');
+    localStorage.setItem('cct_sync_key', syncKey);
+    this._syncKey = syncKey;
+    this._unsubscribers.forEach(fn => fn());
+    this._unsubscribers = [];
+    this._loadedCollections.clear();
+    DataStore._cards = [];
+    DataStore._transactions = [];
+    DataStore._limitGroups = [];
+    this._startListeners();
     this.setSyncStatus('syncing');
-
-    if (this.initFirebase()) {
-      this.listen();
-    }
   },
 
   disconnect() {
-    if (this._dbRef) {
-      this._dbRef.off();
-      this._dbRef = null;
-    }
-    localStorage.removeItem(this._syncKeyKey);
-    localStorage.setItem(this._syncEnabledKey, 'false');
-    localStorage.removeItem(this._lastSyncTimeKey);
+    this._unsubscribers.forEach(fn => fn());
+    this._unsubscribers = [];
+    localStorage.removeItem('cct_sync_key');
     this.setSyncStatus('local');
-  },
-
-  listen() {
-    if (!this.isEnabled()) return;
-    const syncKey = this.getSyncKey();
-    if (!syncKey) return;
-
-    if (!this.initFirebase()) return;
-
-    try {
-      if (this._dbRef) {
-        this._dbRef.off();
-      }
-
-      this._dbRef = firebase.database().ref(`sync_data/${syncKey}`);
-      this.setSyncStatus('syncing');
-
-      this._dbRef.on('value', snapshot => {
-        // Re-entrancy guard: skip if we are currently merging (our own push triggered this)
-        if (this._isMerging) return;
-
-        const remoteData = snapshot.val();
-        const localLastUpdated = DataStore.getLastUpdated();
-
-        if (!remoteData) {
-          this.pushData();
-        } else {
-          const remoteLastUpdated = remoteData.lastUpdated || 0;
-
-          if (remoteLastUpdated > localLastUpdated) {
-            // Perform smart merge to prevent offline data loss
-            this._isMerging = true;
-            try {
-              this.mergeSyncData(remoteData);
-              
-              // Set the new merged timestamp
-              const newTimestamp = Math.max(localLastUpdated, remoteLastUpdated) + 1;
-              DataStore.setLastUpdated(newTimestamp);
-              
-              localStorage.setItem(this._lastSyncTimeKey, Date.now().toString());
-              this.setSyncStatus('synced', new Date().toLocaleTimeString());
-              
-              const activeTab = localStorage.getItem('cct_activeTab') || 'dashboard';
-              switchTab(activeTab); 
-              showToast('Cloud Sync: Merged updates.');
-            } finally {
-              this._isMerging = false;
-            }
-
-            // Push back if we contributed new data OR if we cleaned corrupted remote data
-            // (so Firebase gets overwritten with the clean version)
-            if (this._remoteWasCleaned || this._mergeContributedNewData(remoteData)) {
-              this._remoteWasCleaned = false;
-              setTimeout(() => this.pushData(), 2000);
-            }
-          } else if (localLastUpdated > remoteLastUpdated) {
-            this.pushData();
-          } else {
-            localStorage.setItem(this._lastSyncTimeKey, Date.now().toString());
-            this.setSyncStatus('synced', new Date().toLocaleTimeString());
-          }
-        }
-      }, err => {
-        console.error('Firebase listen error:', err);
-        if (!navigator.onLine) {
-          this.setSyncStatus('offline');
-        } else {
-          this.setSyncStatus('error', err.message);
-        }
-      });
-    } catch (err) {
-      console.error('Firebase error:', err);
-      this.setSyncStatus('error', err.message);
-    }
-  },
-
-  // Clean duplicates from raw Firebase payload BEFORE it touches localStorage.
-  // This is the correct fix: corrupted remote data never lands on any device.
-  _cleanPayload(data) {
-    if (!data) return data;
-    const cards = data.cards || [];
-
-    // Check for duplicate cards
-    const seenKeys = {};
-    let hasDupes = false;
-    for (const c of cards) {
-      const k = `${c.bankName}|${c.cardName}|${c.owner}`;
-      if (seenKeys[k]) { hasDupes = true; break; }
-      seenKeys[k] = true;
-    }
-    if (!hasDupes) return data; // nothing to clean
-
-    this._remoteWasCleaned = true;
-
-    // Keep latest updatedAt per (bankName, cardName, owner)
-    const cardGroups = {};
-    for (const c of cards) {
-      const k = `${c.bankName}|${c.cardName}|${c.owner}`;
-      const existing = cardGroups[k];
-      if (!existing || new Date(c.updatedAt || c.createdAt) > new Date(existing.updatedAt || existing.createdAt)) {
-        cardGroups[k] = c;
-      }
-    }
-    const cleanCards = Object.values(cardGroups);
-    const canonicalId = {}; // old duplicate id → canonical id
-    for (const c of cards) {
-      const k = `${c.bankName}|${c.cardName}|${c.owner}`;
-      if (cardGroups[k].id !== c.id) canonicalId[c.id] = cardGroups[k].id;
-    }
-
-    // Remap + deduplicate transactions
-    const txnGroups = {};
-    for (const t of (data.transactions || [])) {
-      const cardId = canonicalId[t.cardId] || t.cardId;
-      const k = `${cardId}|${t.type}|${t.amount}|${t.date}|${(t.note||'').trim().toLowerCase()}`;
-      (txnGroups[k] = txnGroups[k] || []).push({...t, cardId});
-    }
-    const cleanTxns = [];
-    for (const group of Object.values(txnGroups)) {
-      group.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-      const isSpecial = group[0].type === 'spend' &&
-        Math.abs(parseFloat(group[0].amount) - 494.1) < 0.01 &&
-        group[0].date === '2026-06-21' &&
-        (group[0].note||'').trim().toLowerCase() === 'amazon';
-      cleanTxns.push(...group.slice(0, isSpecial ? 2 : 1));
-    }
-
-    return { ...data, cards: cleanCards, transactions: cleanTxns };
-  },
-
-  mergeSyncData(remoteData) {
-    // Clean the remote payload BEFORE applying it — corrupted Firebase data never touches localStorage
-    remoteData = this._cleanPayload(remoteData);
-
-    // 1. Merge Tombstone lists
-    const localDeletedCards = DataStore.getDeletedCardIds();
-    const remoteDeletedCards = remoteData.deletedCardIds || [];
-    const mergedDeletedCards = Array.from(new Set([...localDeletedCards, ...remoteDeletedCards]));
-    DataStore.saveDeletedCardIds(mergedDeletedCards);
-
-    const localDeletedTxns = DataStore.getDeletedTxnIds();
-    const remoteDeletedTxns = remoteData.deletedTxnIds || [];
-    const mergedDeletedTxns = Array.from(new Set([...localDeletedTxns, ...remoteDeletedTxns]));
-    DataStore.saveDeletedTxnIds(mergedDeletedTxns);
-
-    // 2. Merge Cards
-    const localCards = DataStore.getCards();
-    const remoteCards = remoteData.cards || [];
-    const cardsMap = {};
-    
-    remoteCards.forEach(c => {
-      if (!mergedDeletedCards.includes(c.id)) cardsMap[c.id] = c;
-    });
-    
-    localCards.forEach(c => {
-      if (mergedDeletedCards.includes(c.id)) return;
-      const existing = cardsMap[c.id];
-      if (existing) {
-        const remoteTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
-        const localTime = new Date(c.updatedAt || c.createdAt || 0).getTime();
-        if (localTime > remoteTime) cardsMap[c.id] = c;
-      } else {
-        cardsMap[c.id] = c;
-      }
-    });
-    DataStore.saveCards(Object.values(cardsMap), true);
-
-    // 3. Merge Transactions
-    const localTxns = DataStore.getTransactions();
-    const remoteTxns = remoteData.transactions || [];
-    const txnsMap = {};
-    
-    remoteTxns.forEach(t => {
-      if (!mergedDeletedTxns.includes(t.id)) txnsMap[t.id] = t;
-    });
-    
-    localTxns.forEach(t => {
-      if (mergedDeletedTxns.includes(t.id)) return;
-      const existing = txnsMap[t.id];
-      if (existing) {
-        const remoteTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
-        const localTime = new Date(t.updatedAt || t.createdAt || 0).getTime();
-        if (localTime > remoteTime) txnsMap[t.id] = t;
-      } else {
-        txnsMap[t.id] = t;
-      }
-    });
-    
-    const mergedTxns = Object.values(txnsMap);
-    mergedTxns.sort((a, b) => {
-      if (a.date !== b.date) return b.date > a.date ? 1 : -1;
-      return b.createdAt > a.createdAt ? 1 : -1;
-    });
-    DataStore.saveTransactions(mergedTxns, true);
-
-    // 4. Merge Limit Groups
-    const localGroups = DataStore.getLimitGroups();
-    const remoteGroups = remoteData.limitGroups || [];
-    const groupsMap = {};
-    remoteGroups.forEach(g => groupsMap[g.id] = g);
-    localGroups.forEach(g => {
-      const existing = groupsMap[g.id];
-      if (existing) {
-        const remoteTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
-        const localTime = new Date(g.updatedAt || g.createdAt || 0).getTime();
-        if (localTime > remoteTime) groupsMap[g.id] = g;
-      } else {
-        groupsMap[g.id] = g;
-      }
-    });
-    DataStore.saveLimitGroups(Object.values(groupsMap), true);
-
-    // 5. Recalculate card balances (using skipSync to avoid triggering another push)
-    const finalCards = DataStore.getCards();
-    const txnsForRecalc = DataStore.getTransactions();
-    finalCards.forEach(c => {
-      let balance = 0;
-      txnsForRecalc.forEach(t => {
-        if (t.cardId === c.id) {
-          if (t.type === 'spend' || t.type === 'friend_buy' || t.type === 'transfer') balance += t.amount;
-          else if (t.type === 'payment' || t.type === 'refund') balance -= t.amount;
-        }
-      });
-      c.currentBalance = balance;
-    });
-    DataStore.saveCards(finalCards, true); // skipSync = true — critical!
-  },
-
-  triggerSyncDebounced() {
-    if (!this.isEnabled()) return;
-    if (this._debounceTimeout) clearTimeout(this._debounceTimeout);
-    this._debounceTimeout = setTimeout(() => {
-      this.pushData();
-    }, 1500);
-  },
-
-  // Returns true if local data has entries that remote was missing (we need to push)
-  _mergeContributedNewData(remoteData) {
-    const rCards = new Set((remoteData.cards || []).map(c => c.id));
-    const rTxns  = new Set((remoteData.transactions || []).map(t => t.id));
-    const rDelCards = new Set(remoteData.deletedCardIds || []);
-    const rDelTxns  = new Set(remoteData.deletedTxnIds  || []);
-    return DataStore.getCards().some(c => !rCards.has(c.id))            ||
-           DataStore.getTransactions().some(t => !rTxns.has(t.id))      ||
-           DataStore.getDeletedCardIds().some(id => !rDelCards.has(id)) ||
-           DataStore.getDeletedTxnIds().some(id => !rDelTxns.has(id));
-  },
-
-  async pushData() {
-    if (!this.isEnabled()) return;
-    const syncKey = this.getSyncKey();
-    if (!syncKey) return;
-    if (!this.initFirebase()) return;
-
-    try {
-      const localLastUpdated = DataStore.getLastUpdated();
-      const backupData = {
-        cards: DataStore.getCards(),
-        transactions: DataStore.getTransactions(),
-        limitGroups: DataStore.getLimitGroups(),
-        deletedCardIds: DataStore.getDeletedCardIds(),
-        deletedTxnIds: DataStore.getDeletedTxnIds(),
-        lastUpdated: localLastUpdated
-      };
-
-      await firebase.database().ref(`sync_data/${syncKey}`).set(backupData);
-      localStorage.setItem(this._lastSyncTimeKey, Date.now().toString());
-      this.setSyncStatus('synced', new Date().toLocaleTimeString());
-    } catch (err) {
-      console.error('Firebase push error:', err);
-      if (!navigator.onLine) {
-        this.setSyncStatus('offline');
-      } else {
-        this.setSyncStatus('error', err.message);
-      }
-    }
   }
 };
+
+// Alias so existing references to FirebaseSyncManager keep working
+const FirebaseSyncManager = FirestoreSync;
+
 
 // ─── CardManager ────────────────────────────────────────────────────────────
 
@@ -2433,19 +2120,12 @@ async function setupSync(event) {
 }
 
 async function triggerManualSync() {
-  showToast('Syncing data...');
-  await FirebaseSyncManager.pushData();
+  showToast('✅ Always live — Firestore syncs instantly on every change', 'success');
   renderSettings();
 }
 
 async function forceCleanAndSync() {
-  const cleaned = cleanupDuplicates();
-  // Set a timestamp guaranteed to beat anything in Firebase, so clean data always wins
-  localStorage.setItem('cct_last_updated', Date.now() + 999999);
-  await FirebaseSyncManager.pushData();
-  const activeTab = localStorage.getItem('cct_activeTab') || 'dashboard';
-  switchTab(activeTab);
-  showToast(cleaned ? '✅ Duplicates removed and synced!' : '✅ No duplicates found — data is clean!', 'success');
+  showToast('✅ No manual sync needed — Firestore handles it automatically', 'success');
   renderSettings();
 }
 
@@ -2673,121 +2353,20 @@ function createOpeningBalanceTransactionsForExistingCards() {
   }
 }
 
-// ─── Duplicate Cleanup (post sync-loop incident) ────────────────────────────
-// cleanupDuplicates() is called both on init AND after every Firebase merge,
-// so even a brand-new browser that pulls corrupted data from Firebase gets fixed
-// and immediately pushes the clean result back.
-
-function cleanupDuplicates() {
-  const get = k => JSON.parse(localStorage.getItem(k) || '[]');
-  const set = (k, v) => localStorage.setItem(k, JSON.stringify(v));
-
-  let cards = get('cct_cards');
-  let txns  = get('cct_transactions');
-  let deletedCardIds = get('cct_deleted_card_ids');
-  let deletedTxnIds  = get('cct_deleted_txn_ids');
-
-  if (cards.length === 0) return false;
-
-  // 1. Deduplicate cards — keep earliest createdAt per (bankName, cardName, owner)
-  const cardGroups = {};
-  for (const c of cards) {
-    const k = `${c.bankName}|${c.cardName}|${c.owner}`;
-    (cardGroups[k] = cardGroups[k] || []).push(c);
-  }
-  const cardIdRemap = {};
-  const keepCards = [];
-  for (const group of Object.values(cardGroups)) {
-    group.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
-    keepCards.push(group[0]);
-    for (let i = 1; i < group.length; i++) {
-      cardIdRemap[group[i].id] = group[0].id;
-      deletedCardIds.push(group[i].id);
-    }
-  }
-
-  // 2. Remap transaction cardIds to canonical card
-  txns = txns.map(t => cardIdRemap[t.cardId] ? { ...t, cardId: cardIdRemap[t.cardId] } : t);
-
-  // 3. Deduplicate transactions — keep 2 of the ₹494.10 amazon pair, 1 of everything else
-  const txnGroups = {};
-  for (const t of txns) {
-    const k = `${t.cardId}|${t.type}|${t.amount}|${t.date}|${(t.note||'').trim().toLowerCase()}`;
-    (txnGroups[k] = txnGroups[k] || []).push(t);
-  }
-  const keepTxns = [];
-  for (const group of Object.values(txnGroups)) {
-    group.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-    const isSpecialPair = group[0].type === 'spend' &&
-      Math.abs(parseFloat(group[0].amount) - 494.1) < 0.01 &&
-      group[0].date === '2026-06-21' &&
-      (group[0].note||'').trim().toLowerCase() === 'amazon';
-    const keep = isSpecialPair ? 2 : 1;
-    keepTxns.push(...group.slice(0, keep));
-    for (const t of group.slice(keep)) deletedTxnIds.push(t.id);
-  }
-
-  const cleaned = cards.length !== keepCards.length || txns.length !== keepTxns.length;
-  if (!cleaned) return false; // nothing to do
-
-  // 4. Recalculate all balances from scratch
-  for (const c of keepCards) c.currentBalance = 0;
-  const cardMap = Object.fromEntries(keepCards.map(c => [c.id, c]));
-  for (const t of keepTxns) {
-    const c = cardMap[t.cardId];
-    if (!c) continue;
-    if (t.type === 'spend' || t.type === 'friend_buy' || t.type === 'transfer') c.currentBalance += parseFloat(t.amount);
-    else if (t.type === 'payment' || t.type === 'refund') c.currentBalance -= parseFloat(t.amount);
-  }
-
-  // 5. Save clean data
-  set('cct_cards', keepCards);
-  set('cct_transactions', keepTxns);
-  set('cct_deleted_card_ids', [...new Set(deletedCardIds)]);
-  set('cct_deleted_txn_ids', [...new Set(deletedTxnIds)]);
-  localStorage.setItem('cct_last_updated', Date.now());
-
-  console.log(`[cleanup] Removed dupes — Cards: ${cards.length}→${keepCards.length} | Txns: ${txns.length}→${keepTxns.length}`);
-  return true; // signal that we cleaned something (caller should push to Firebase)
-}
-
-function runOnceCleanup() {
-  // On init: clean if there are dupes in localStorage already
-  cleanupDuplicates();
-}
-
 // ─── Initialization ──────────────────────────────────────────────────────────
 
 function init() {
-  runOnceCleanup(); // deduplicate data corrupted by sync loop (runs only once)
-
-  const dbVersion = localStorage.getItem('cct_db_version') || '0';
-  const existingCards = DataStore.getCards();
-
-  if (dbVersion !== '4') {
-    if (existingCards.length === 0 || (existingCards.length === 2 && existingCards.some(c => c.cardName === 'Regalia'))) {
-      preSeedData();
-    } else {
-      migrateTransfers();
-      createOpeningBalanceTransactionsForExistingCards();
-    }
-    localStorage.setItem('cct_db_version', '4');
-  }
-
   // Tab navigation
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
 
-  // FAB
   document.getElementById('fab').addEventListener('click', openTransactionModal);
 
-  // Modal close on overlay click
   document.getElementById('modal-overlay').addEventListener('click', e => {
     if (e.target.id === 'modal-overlay') closeModal();
   });
 
-  // Keyboard shortcuts
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeModal();
     if (e.key === 'Enter' && !document.getElementById('modal-overlay').classList.contains('hidden')) {
@@ -2799,40 +2378,46 @@ function init() {
     }
   });
 
-  // Initialize Sync Indicator badge
-  const lastSyncTime = FirebaseSyncManager.getLastSyncTime();
-  FirebaseSyncManager.setSyncStatus(
-    FirebaseSyncManager.isEnabled() ? 'synced' : 'local',
-    lastSyncTime ? new Date(lastSyncTime).toLocaleTimeString() : ''
-  );
-
-  // Manual click on sync badge in header triggers sync
   document.getElementById('sync-indicator-header').addEventListener('click', () => {
-    if (FirebaseSyncManager.isEnabled()) {
-      triggerManualSync();
-    } else {
-      // Go to Settings tab if not enabled so they can configure it
-      switchTab('settings');
-      showToast('Configure cloud sync here!', 'info');
-    }
+    showToast('Live sync is always active ✅', 'success');
   });
 
-  // Restore last active tab
   updateHeaderUndoButton();
-  const lastTab = localStorage.getItem('cct_activeTab') || 'dashboard';
-  switchTab(lastTab);
 
-  // Start Firebase listener on load if enabled
-  if (FirebaseSyncManager.isEnabled()) {
-    FirebaseSyncManager.listen();
-  }
+  // Migrate any existing localStorage data to Firestore on first launch
+  _migrateLocalStorageToFirestore();
 
-  // Ensure listener is active/checked on refocus
-  window.addEventListener('focus', () => {
-    if (FirebaseSyncManager.isEnabled()) {
-      FirebaseSyncManager.listen();
+  // Show loading state — FirestoreSync will render once data arrives
+  FirestoreSync.setSyncStatus('syncing');
+  FirestoreSync.init();
+}
+
+function _migrateLocalStorageToFirestore() {
+  if (localStorage.getItem('cct_migrated_to_firestore')) return;
+  try {
+    const oldCards  = JSON.parse(localStorage.getItem('cct_cards')  || '[]');
+    const oldTxns   = JSON.parse(localStorage.getItem('cct_transactions') || '[]');
+    const oldGroups = JSON.parse(localStorage.getItem('cct_limit_groups') || '[]');
+    if (oldCards.length > 0 || oldTxns.length > 0) {
+      // Dedup cards before migrating (clean up any sync-loop damage)
+      const cardGroups = {};
+      for (const c of oldCards) {
+        const k = `${c.bankName}|${c.cardName}|${c.owner}`;
+        const ex = cardGroups[k];
+        if (!ex || new Date(c.updatedAt||c.createdAt) > new Date(ex.updatedAt||ex.createdAt))
+          cardGroups[k] = c;
+      }
+      const cleanCards = Object.values(cardGroups);
+      const keepIds = new Set(cleanCards.map(c => c.id));
+      const cleanTxns = oldTxns.filter(t => keepIds.has(t.cardId));
+      // Write everything to Firestore
+      cleanCards.forEach(c => FirestoreSync.set('cards', c.id, c));
+      cleanTxns.forEach(t => FirestoreSync.set('transactions', t.id, t));
+      oldGroups.forEach(g => FirestoreSync.set('limitGroups', g.id, g));
+      console.log(`[migration] ${cleanCards.length} cards, ${cleanTxns.length} txns → Firestore`);
     }
-  });
+  } catch (e) { console.error('Migration error:', e); }
+  localStorage.setItem('cct_migrated_to_firestore', '1');
 }
 
 document.addEventListener('DOMContentLoaded', init);
