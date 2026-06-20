@@ -1353,9 +1353,19 @@ function openEditGroupModal(groupId) {
       return;
     }
 
-    group.name = name;
-    group.limit = limit;
-    group.owner = owner;
+    // Create a copy of the group instead of mutating it in place to ensure diff is detected
+    const updatedGroup = {
+      ...group,
+      name: name,
+      limit: limit,
+      owner: owner,
+      updatedAt: nowISO()
+    };
+
+    const groupIdx = groups.findIndex(g => g.id === group.id);
+    if (groupIdx !== -1) {
+      groups[groupIdx] = updatedGroup;
+    }
 
     // Update all cards in this group to match the owner
     const cards = DataStore.getCards();
