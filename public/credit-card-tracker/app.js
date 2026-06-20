@@ -2396,7 +2396,7 @@ function init() {
 }
 
 function _cleanupFirestore() {
-  if (localStorage.getItem('cct_firestore_cleanup_v1')) return; // already ran on this device
+  if (localStorage.getItem('cct_firestore_cleanup_v2')) return; // already ran on this device
   // Dedup whatever is already in Firestore — deletes extra docs directly
   const cards = [...DataStore._cards];
   const txns  = [...DataStore._transactions];
@@ -2406,7 +2406,7 @@ function _cleanupFirestore() {
   for (const c of cards) {
     const k = `${c.bankName}|${c.cardName}|${c.owner}`;
     const ex = cardGroups[k];
-    if (!ex || new Date(c.updatedAt||c.createdAt) > new Date(ex.updatedAt||ex.createdAt))
+    if (!ex || (c.creditLimit||0) > (ex.creditLimit||0) || ((c.creditLimit||0) === (ex.creditLimit||0) && new Date(c.updatedAt||c.createdAt) > new Date(ex.updatedAt||ex.createdAt)))
       cardGroups[k] = c;
   }
   const cleanCards = Object.values(cardGroups);
@@ -2444,7 +2444,7 @@ function _cleanupFirestore() {
 
   DataStore._cards.length = 0; DataStore._cards.push(...cleanCards);
   DataStore._transactions.length = 0; DataStore._transactions.push(...cleanTxns);
-  localStorage.setItem('cct_firestore_cleanup_v1', '1'); // never run again on this device
+  localStorage.setItem('cct_firestore_cleanup_v2', '1'); // never run again on this device
   if (cards.length !== cleanCards.length || txns.length !== cleanTxns.length)
     console.log(`[cleanup] Cards ${cards.length}→${cleanCards.length} | Txns ${txns.length}→${cleanTxns.length}`);
 }
@@ -2462,7 +2462,7 @@ function _migrateLocalStorageToFirestore() {
     for (const c of oldCards) {
       const k = `${c.bankName}|${c.cardName}|${c.owner}`;
       const ex = cardGroups[k];
-      if (!ex || new Date(c.updatedAt||c.createdAt) > new Date(ex.updatedAt||ex.createdAt))
+      if (!ex || (c.creditLimit||0) > (ex.creditLimit||0) || ((c.creditLimit||0) === (ex.creditLimit||0) && new Date(c.updatedAt||c.createdAt) > new Date(ex.updatedAt||ex.createdAt)))
         cardGroups[k] = c;
     }
     const cleanCards = Object.values(cardGroups);
