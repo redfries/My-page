@@ -2588,7 +2588,85 @@ function createOpeningBalanceTransactionsForExistingCards() {
   }
 }
 
+// ─── One-Time Duplicate Cleanup (post sync-loop incident) ───────────────────
+
+function runOnceCleanup() {
+  if (localStorage.getItem('cct_cleanup_v1')) return;
+
+  const get = k => JSON.parse(localStorage.getItem(k) || '[]');
+  const set = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+
+  let cards = get('cct_cards');
+  let txns = get('cct_transactions');
+  let deletedCardIds = get('cct_deleted_card_ids');
+  let deletedTxnIds = get('cct_deleted_txn_ids');
+
+  if (cards.length === 0) { localStorage.setItem('cct_cleanup_v1', '1'); return; }
+
+  // 1. Deduplicate cards — keep earliest createdAt per (bankName, cardName, owner)
+  const cardGroups = {};
+  for (const c of cards) {
+    const k = `${c.bankName}|${c.cardName}|${c.owner}`;
+    (cardGroups[k] = cardGroups[k] || []).push(c);
+  }
+  const cardIdRemap = {};
+  const keepCards = [];
+  for (const group of Object.values(cardGroups)) {
+    group.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    keepCards.push(group[0]);
+    for (let i = 1; i < group.length; i++) {
+      cardIdRemap[group[i].id] = group[0].id;
+      deletedCardIds.push(group[i].id);
+    }
+  }
+
+  // 2. Remap transaction cardIds to canonical card
+  txns = txns.map(t => cardIdRemap[t.cardId] ? { ...t, cardId: cardIdRemap[t.cardId] } : t);
+
+  // 3. Deduplicate transactions — keep 2 of the ₹494.10 amazon pair, 1 of everything else
+  const txnGroups = {};
+  for (const t of txns) {
+    const k = `${t.cardId}|${t.type}|${t.amount}|${t.date}|${(t.note||'').trim().toLowerCase()}`;
+    (txnGroups[k] = txnGroups[k] || []).push(t);
+  }
+  const keepTxns = [];
+  for (const group of Object.values(txnGroups)) {
+    group.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    const isSpecialPair = group[0].type === 'spend' &&
+      Math.abs(parseFloat(group[0].amount) - 494.1) < 0.01 &&
+      group[0].date === '2026-06-21' &&
+      (group[0].note||'').trim().toLowerCase() === 'amazon';
+    const keep = isSpecialPair ? 2 : 1;
+    keepTxns.push(...group.slice(0, keep));
+    for (const t of group.slice(keep)) deletedTxnIds.push(t.id);
+  }
+
+  // 4. Recalculate all balances from scratch
+  for (const c of keepCards) c.currentBalance = 0;
+  const cardMap = Object.fromEntries(keepCards.map(c => [c.id, c]));
+  for (const t of keepTxns) {
+    const c = cardMap[t.cardId];
+    if (!c) continue;
+    if (t.type === 'spend' || t.type === 'friend_buy' || t.type === 'transfer') c.currentBalance += parseFloat(t.amount);
+    else if (t.type === 'payment' || t.type === 'refund') c.currentBalance -= parseFloat(t.amount);
+  }
+
+  // 5. Save clean data
+  set('cct_cards', keepCards);
+  set('cct_transactions', keepTxns);
+  set('cct_deleted_card_ids', [...new Set(deletedCardIds)]);
+  set('cct_deleted_txn_ids', [...new Set(deletedTxnIds)]);
+  localStorage.setItem('cct_last_updated', Date.now());
+  localStorage.setItem('cct_cleanup_v1', '1');
+
+  console.log(`[cleanup] Done — Cards: ${cards.length}→${keepCards.length} | Txns: ${txns.length}→${keepTxns.length}`);
+}
+
+// ─── Initialization ──────────────────────────────────────────────────────────
+
 function init() {
+  runOnceCleanup(); // deduplicate data corrupted by sync loop (runs only once)
+
   const dbVersion = localStorage.getItem('cct_db_version') || '0';
   const existingCards = DataStore.getCards();
 
