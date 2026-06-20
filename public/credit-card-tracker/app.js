@@ -286,6 +286,7 @@ const FirebaseSyncManager = {
   _syncKeyKey: 'cct_sync_key',
   _lastSyncTimeKey: 'cct_last_sync_time',
   _debounceTimeout: null,
+  _isMerging: false, // re-entrancy guard to prevent sync loops
   _status: 'local', // local, syncing, synced, offline, error
   _dbRef: null,
   _firebaseApp: null,
@@ -403,6 +404,9 @@ const FirebaseSyncManager = {
       this.setSyncStatus('syncing');
 
       this._dbRef.on('value', snapshot => {
+        // Re-entrancy guard: skip if we are currently merging (our own push triggered this)
+        if (this._isMerging) return;
+
         const remoteData = snapshot.val();
         const localLastUpdated = DataStore.getLastUpdated();
 
@@ -413,21 +417,27 @@ const FirebaseSyncManager = {
 
           if (remoteLastUpdated > localLastUpdated) {
             // Perform smart merge to prevent offline data loss
-            this.mergeSyncData(remoteData);
-            
-            // Set the new merged timestamp slightly ahead to ensure it is propagated
-            const newTimestamp = Math.max(localLastUpdated, remoteLastUpdated) + 1;
-            DataStore.setLastUpdated(newTimestamp);
-            
-            localStorage.setItem(this._lastSyncTimeKey, Date.now().toString());
-            this.setSyncStatus('synced', new Date().toLocaleTimeString());
-            
-            // Push the merged results back to the cloud so all clients have the union
-            this.pushData();
-            
-            const activeTab = localStorage.getItem('cct_activeTab') || 'dashboard';
-            switchTab(activeTab); 
-            showToast('Cloud Sync: Merged updates.');
+            this._isMerging = true;
+            try {
+              this.mergeSyncData(remoteData);
+              
+              // Set the new merged timestamp
+              const newTimestamp = Math.max(localLastUpdated, remoteLastUpdated) + 1;
+              DataStore.setLastUpdated(newTimestamp);
+              
+              localStorage.setItem(this._lastSyncTimeKey, Date.now().toString());
+              this.setSyncStatus('synced', new Date().toLocaleTimeString());
+              
+              const activeTab = localStorage.getItem('cct_activeTab') || 'dashboard';
+              switchTab(activeTab); 
+              showToast('Cloud Sync: Merged updates.');
+            } finally {
+              this._isMerging = false;
+            }
+
+            // Push merged data back ONCE after guard is released, with a delay
+            // to avoid immediate re-trigger
+            setTimeout(() => this.pushData(), 2000);
           } else if (localLastUpdated > remoteLastUpdated) {
             this.pushData();
           } else {
@@ -528,11 +538,20 @@ const FirebaseSyncManager = {
     });
     DataStore.saveLimitGroups(Object.values(groupsMap), true);
 
-    // 5. Recalculate card balances
+    // 5. Recalculate card balances (using skipSync to avoid triggering another push)
     const finalCards = DataStore.getCards();
+    const txnsForRecalc = DataStore.getTransactions();
     finalCards.forEach(c => {
-      CardManager.recalculateBalance(c.id);
+      let balance = 0;
+      txnsForRecalc.forEach(t => {
+        if (t.cardId === c.id) {
+          if (t.type === 'spend' || t.type === 'friend_buy' || t.type === 'transfer') balance += t.amount;
+          else if (t.type === 'payment' || t.type === 'refund') balance -= t.amount;
+        }
+      });
+      c.currentBalance = balance;
     });
+    DataStore.saveCards(finalCards, true); // skipSync = true — critical!
   },
 
   triggerSyncDebounced() {
