@@ -260,8 +260,8 @@ const FirestoreSync = {
   },
 
   set(col, id, data) {
-    if (!this._db) return;
-    this._col(col).doc(id).set(data).catch(e => console.error('Firestore write error:', e));
+    if (!this._db) { showToast('⚠️ Firestore not connected — change not saved!', 'error'); return; }
+    this._col(col).doc(id).set(data).catch(e => showToast('❌ Save failed: ' + e.message, 'error'));
   },
 
   del(col, id) {
