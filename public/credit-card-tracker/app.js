@@ -290,8 +290,9 @@ const FirestoreSync = {
           localStorage.setItem('cct_last_sync_time', Date.now());
           this.setSyncStatus('synced', new Date().toLocaleTimeString());
 
-          // Re-render once all collections have loaded at least once
+          // Once all 3 collections have loaded: migrate from localStorage if Firestore is empty
           if (this._loadedCollections.size === 3) {
+            if (DataStore._cards.length === 0) _migrateLocalStorageToFirestore();
             const activeTab = localStorage.getItem('cct_activeTab') || 'dashboard';
             switchTab(activeTab);
           }
@@ -2384,40 +2385,38 @@ function init() {
 
   updateHeaderUndoButton();
 
-  // Migrate any existing localStorage data to Firestore on first launch
-  _migrateLocalStorageToFirestore();
-
   // Show loading state — FirestoreSync will render once data arrives
   FirestoreSync.setSyncStatus('syncing');
   FirestoreSync.init();
 }
 
 function _migrateLocalStorageToFirestore() {
-  if (localStorage.getItem('cct_migrated_to_firestore')) return;
+  // Only runs if Firestore was empty — migrates old localStorage data once, then clears it
   try {
     const oldCards  = JSON.parse(localStorage.getItem('cct_cards')  || '[]');
     const oldTxns   = JSON.parse(localStorage.getItem('cct_transactions') || '[]');
     const oldGroups = JSON.parse(localStorage.getItem('cct_limit_groups') || '[]');
-    if (oldCards.length > 0 || oldTxns.length > 0) {
-      // Dedup cards before migrating (clean up any sync-loop damage)
-      const cardGroups = {};
-      for (const c of oldCards) {
-        const k = `${c.bankName}|${c.cardName}|${c.owner}`;
-        const ex = cardGroups[k];
-        if (!ex || new Date(c.updatedAt||c.createdAt) > new Date(ex.updatedAt||ex.createdAt))
-          cardGroups[k] = c;
-      }
-      const cleanCards = Object.values(cardGroups);
-      const keepIds = new Set(cleanCards.map(c => c.id));
-      const cleanTxns = oldTxns.filter(t => keepIds.has(t.cardId));
-      // Write everything to Firestore
-      cleanCards.forEach(c => FirestoreSync.set('cards', c.id, c));
-      cleanTxns.forEach(t => FirestoreSync.set('transactions', t.id, t));
-      oldGroups.forEach(g => FirestoreSync.set('limitGroups', g.id, g));
-      console.log(`[migration] ${cleanCards.length} cards, ${cleanTxns.length} txns → Firestore`);
+    if (oldCards.length === 0) return;
+    // Dedup cards before migrating
+    const cardGroups = {};
+    for (const c of oldCards) {
+      const k = `${c.bankName}|${c.cardName}|${c.owner}`;
+      const ex = cardGroups[k];
+      if (!ex || new Date(c.updatedAt||c.createdAt) > new Date(ex.updatedAt||ex.createdAt))
+        cardGroups[k] = c;
     }
+    const cleanCards = Object.values(cardGroups);
+    const keepIds = new Set(cleanCards.map(c => c.id));
+    const cleanTxns = oldTxns.filter(t => keepIds.has(t.cardId));
+    cleanCards.forEach(c => FirestoreSync.set('cards', c.id, c));
+    cleanTxns.forEach(t => FirestoreSync.set('transactions', t.id, t));
+    oldGroups.forEach(g => FirestoreSync.set('limitGroups', g.id, g));
+    // Clear localStorage so migration doesn't re-run
+    localStorage.removeItem('cct_cards');
+    localStorage.removeItem('cct_transactions');
+    localStorage.removeItem('cct_limit_groups');
+    console.log(`[migration] ${cleanCards.length} cards, ${cleanTxns.length} txns → Firestore`);
   } catch (e) { console.error('Migration error:', e); }
-  localStorage.setItem('cct_migrated_to_firestore', '1');
 }
 
 document.addEventListener('DOMContentLoaded', init);
