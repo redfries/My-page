@@ -435,9 +435,11 @@ const FirebaseSyncManager = {
               this._isMerging = false;
             }
 
-            // Push merged data back ONCE after guard is released, with a delay
-            // to avoid immediate re-trigger
-            setTimeout(() => this.pushData(), 2000);
+            // Only push back if we contributed new data the remote didn't have.
+            // This is the key guard against ping-pong loops between devices.
+            if (this._mergeContributedNewData(remoteData)) {
+              setTimeout(() => this.pushData(), 2000);
+            }
           } else if (localLastUpdated > remoteLastUpdated) {
             this.pushData();
           } else {
@@ -560,6 +562,18 @@ const FirebaseSyncManager = {
     this._debounceTimeout = setTimeout(() => {
       this.pushData();
     }, 1500);
+  },
+
+  // Returns true if local data has entries that remote was missing (we need to push)
+  _mergeContributedNewData(remoteData) {
+    const rCards = new Set((remoteData.cards || []).map(c => c.id));
+    const rTxns  = new Set((remoteData.transactions || []).map(t => t.id));
+    const rDelCards = new Set(remoteData.deletedCardIds || []);
+    const rDelTxns  = new Set(remoteData.deletedTxnIds  || []);
+    return DataStore.getCards().some(c => !rCards.has(c.id))            ||
+           DataStore.getTransactions().some(t => !rTxns.has(t.id))      ||
+           DataStore.getDeletedCardIds().some(id => !rDelCards.has(id)) ||
+           DataStore.getDeletedTxnIds().some(id => !rDelTxns.has(id));
   },
 
   async pushData() {
