@@ -2630,7 +2630,7 @@ function cleanupDuplicates() {
   const cardIdRemap = {};
   const keepCards = [];
   for (const group of Object.values(cardGroups)) {
-    group.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    group.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
     keepCards.push(group[0]);
     for (let i = 1; i < group.length; i++) {
       cardIdRemap[group[i].id] = group[0].id;
