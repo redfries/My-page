@@ -109,7 +109,16 @@ const DataStore = {
   _limitGroups: [],
 
   getCards() {
-    return this._cards.map(c => ({ owner: 'Self', limitGroupId: null, ...c }));
+    // Deduplicate in memory — keeps highest creditLimit per card name, never touches Firestore
+    const best = {};
+    for (const c of this._cards) {
+      const k = `${c.bankName}|${c.cardName}|${c.owner||'Self'}`;
+      const ex = best[k];
+      if (!ex || (c.creditLimit||0) > (ex.creditLimit||0) ||
+          ((c.creditLimit||0) === (ex.creditLimit||0) && new Date(c.updatedAt||0) > new Date(ex.updatedAt||0)))
+        best[k] = c;
+    }
+    return Object.values(best).map(c => ({ owner: 'Self', limitGroupId: null, ...c }));
   },
   getTransactions() { return [...this._transactions]; },
   getLimitGroups()   { return [...this._limitGroups]; },
@@ -295,7 +304,6 @@ const FirestoreSync = {
             if (!this._cleanupDone) {
               this._cleanupDone = true;
               if (DataStore._cards.length === 0) _migrateLocalStorageToFirestore();
-              else _cleanupFirestore(); // deduplicate whatever is in Firestore
             }
             const activeTab = localStorage.getItem('cct_activeTab') || 'dashboard';
             switchTab(activeTab);
