@@ -339,9 +339,10 @@ const FirestoreSync = {
     this._unsubscribers.forEach(fn => fn());
     this._unsubscribers = [];
     this._loadedCollections.clear();
-    DataStore._cards = [];
-    DataStore._transactions = [];
-    DataStore._limitGroups = [];
+    this._cleanupDone = false;
+    DataStore._cards.length = 0;
+    DataStore._transactions.length = 0;
+    DataStore._limitGroups.length = 0;
     this._startListeners();
     this.setSyncStatus('syncing');
   },
@@ -2441,8 +2442,8 @@ function _cleanupFirestore() {
       FirestoreSync.set('transactions', t.id, t);
   }
 
-  DataStore._cards = cleanCards;
-  DataStore._transactions = cleanTxns;
+  DataStore._cards.length = 0; DataStore._cards.push(...cleanCards);
+  DataStore._transactions.length = 0; DataStore._transactions.push(...cleanTxns);
   localStorage.setItem('cct_firestore_cleanup_v1', '1'); // never run again on this device
   if (cards.length !== cleanCards.length || txns.length !== cleanTxns.length)
     console.log(`[cleanup] Cards ${cards.length}→${cleanCards.length} | Txns ${txns.length}→${cleanTxns.length}`);
