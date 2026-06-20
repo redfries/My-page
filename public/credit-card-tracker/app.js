@@ -435,9 +435,9 @@ const FirebaseSyncManager = {
               this._isMerging = false;
             }
 
-            // Only push back if we contributed new data the remote didn't have.
-            // This is the key guard against ping-pong loops between devices.
-            if (this._mergeContributedNewData(remoteData)) {
+            // Only push back if we contributed new data OR we just cleaned duplicates
+            // (cleaning dupes means Firebase still has corrupted data — we must overwrite it)
+            if (this._lastMergeHadDupes || this._mergeContributedNewData(remoteData)) {
               setTimeout(() => this.pushData(), 2000);
             }
           } else if (localLastUpdated > remoteLastUpdated) {
@@ -554,6 +554,9 @@ const FirebaseSyncManager = {
       c.currentBalance = balance;
     });
     DataStore.saveCards(finalCards, true); // skipSync = true — critical!
+
+    // After merge, dedup any duplicates that came from Firebase (sets _lastMergeHadDupes)
+    this._lastMergeHadDupes = cleanupDuplicates();
   },
 
   triggerSyncDebounced() {
@@ -2602,20 +2605,21 @@ function createOpeningBalanceTransactionsForExistingCards() {
   }
 }
 
-// ─── One-Time Duplicate Cleanup (post sync-loop incident) ───────────────────
+// ─── Duplicate Cleanup (post sync-loop incident) ────────────────────────────
+// cleanupDuplicates() is called both on init AND after every Firebase merge,
+// so even a brand-new browser that pulls corrupted data from Firebase gets fixed
+// and immediately pushes the clean result back.
 
-function runOnceCleanup() {
-  if (localStorage.getItem('cct_cleanup_v1')) return;
-
+function cleanupDuplicates() {
   const get = k => JSON.parse(localStorage.getItem(k) || '[]');
   const set = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
   let cards = get('cct_cards');
-  let txns = get('cct_transactions');
+  let txns  = get('cct_transactions');
   let deletedCardIds = get('cct_deleted_card_ids');
-  let deletedTxnIds = get('cct_deleted_txn_ids');
+  let deletedTxnIds  = get('cct_deleted_txn_ids');
 
-  if (cards.length === 0) { localStorage.setItem('cct_cleanup_v1', '1'); return; }
+  if (cards.length === 0) return false;
 
   // 1. Deduplicate cards — keep earliest createdAt per (bankName, cardName, owner)
   const cardGroups = {};
@@ -2655,6 +2659,9 @@ function runOnceCleanup() {
     for (const t of group.slice(keep)) deletedTxnIds.push(t.id);
   }
 
+  const cleaned = cards.length !== keepCards.length || txns.length !== keepTxns.length;
+  if (!cleaned) return false; // nothing to do
+
   // 4. Recalculate all balances from scratch
   for (const c of keepCards) c.currentBalance = 0;
   const cardMap = Object.fromEntries(keepCards.map(c => [c.id, c]));
@@ -2671,9 +2678,14 @@ function runOnceCleanup() {
   set('cct_deleted_card_ids', [...new Set(deletedCardIds)]);
   set('cct_deleted_txn_ids', [...new Set(deletedTxnIds)]);
   localStorage.setItem('cct_last_updated', Date.now());
-  localStorage.setItem('cct_cleanup_v1', '1');
 
-  console.log(`[cleanup] Done — Cards: ${cards.length}→${keepCards.length} | Txns: ${txns.length}→${keepTxns.length}`);
+  console.log(`[cleanup] Removed dupes — Cards: ${cards.length}→${keepCards.length} | Txns: ${txns.length}→${keepTxns.length}`);
+  return true; // signal that we cleaned something (caller should push to Firebase)
+}
+
+function runOnceCleanup() {
+  // On init: clean if there are dupes in localStorage already
+  cleanupDuplicates();
 }
 
 // ─── Initialization ──────────────────────────────────────────────────────────
