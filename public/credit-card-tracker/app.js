@@ -109,19 +109,45 @@ const DataStore = {
   _limitGroups: [],
 
   getCards() {
-    // Deduplicate in memory — keeps highest creditLimit per card name, never touches Firestore
+    // Build canonical group map (by name → best group)
+    const bestGroup = {};
+    for (const g of this._limitGroups) {
+      const ex = bestGroup[g.name];
+      if (!ex || (g.limit||0) > (ex.limit||0) ||
+          ((g.limit||0) === (ex.limit||0) && new Date(g.updatedAt||0) > new Date(ex.updatedAt||0)))
+        bestGroup[g.name] = g;
+    }
+    // Build remap: duplicate group id → canonical group id
+    const groupRemap = {};
+    for (const g of this._limitGroups) {
+      const canon = bestGroup[g.name];
+      if (canon && canon.id !== g.id) groupRemap[g.id] = canon.id;
+    }
+    // Deduplicate cards, remapping limitGroupId to canonical
     const best = {};
     for (const c of this._cards) {
-      const k = `${c.bankName}|${c.cardName}|${c.owner||'Self'}`;
+      const limitGroupId = groupRemap[c.limitGroupId] || c.limitGroupId;
+      const mc = limitGroupId !== c.limitGroupId ? {...c, limitGroupId} : c;
+      const k = `${mc.bankName}|${mc.cardName}|${mc.owner||'Self'}`;
       const ex = best[k];
-      if (!ex || (c.creditLimit||0) > (ex.creditLimit||0) ||
-          ((c.creditLimit||0) === (ex.creditLimit||0) && new Date(c.updatedAt||0) > new Date(ex.updatedAt||0)))
-        best[k] = c;
+      if (!ex || (mc.creditLimit||0) > (ex.creditLimit||0) ||
+          ((mc.creditLimit||0) === (ex.creditLimit||0) && new Date(mc.updatedAt||0) > new Date(ex.updatedAt||0)))
+        best[k] = mc;
     }
     return Object.values(best).map(c => ({ owner: 'Self', limitGroupId: null, ...c }));
   },
   getTransactions() { return [...this._transactions]; },
-  getLimitGroups()   { return [...this._limitGroups]; },
+  getLimitGroups() {
+    // Dedup in memory — keep highest limit per group name
+    const best = {};
+    for (const g of this._limitGroups) {
+      const ex = best[g.name];
+      if (!ex || (g.limit||0) > (ex.limit||0) ||
+          ((g.limit||0) === (ex.limit||0) && new Date(g.updatedAt||0) > new Date(ex.updatedAt||0)))
+        best[g.name] = g;
+    }
+    return Object.values(best);
+  },
 
   saveCards(newCards, _skipSync) {
     const oldMap = Object.fromEntries(this._cards.map(c => [c.id, c]));
