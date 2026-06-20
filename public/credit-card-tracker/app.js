@@ -2395,6 +2395,7 @@ function init() {
 }
 
 function _cleanupFirestore() {
+  if (localStorage.getItem('cct_firestore_cleanup_v1')) return; // already ran on this device
   // Dedup whatever is already in Firestore — deletes extra docs directly
   const cards = [...DataStore._cards];
   const txns  = [...DataStore._transactions];
@@ -2442,6 +2443,7 @@ function _cleanupFirestore() {
 
   DataStore._cards = cleanCards;
   DataStore._transactions = cleanTxns;
+  localStorage.setItem('cct_firestore_cleanup_v1', '1'); // never run again on this device
   if (cards.length !== cleanCards.length || txns.length !== cleanTxns.length)
     console.log(`[cleanup] Cards ${cards.length}→${cleanCards.length} | Txns ${txns.length}→${cleanTxns.length}`);
 }
