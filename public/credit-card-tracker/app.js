@@ -123,7 +123,7 @@ const DataStore = {
     const newIds = new Set(newCards.map(c => c.id));
     for (const id of Object.keys(oldMap))
       if (!newIds.has(id)) FirestoreSync.del('cards', id);
-    this._cards = [...newCards];
+    this._cards.length = 0; this._cards.push(...newCards);
   },
 
   saveTransactions(newTxns, _skipSync) {
@@ -135,7 +135,7 @@ const DataStore = {
     const newIds = new Set(newTxns.map(t => t.id));
     for (const id of Object.keys(oldMap))
       if (!newIds.has(id)) FirestoreSync.del('transactions', id);
-    this._transactions = [...newTxns];
+    this._transactions.length = 0; this._transactions.push(...newTxns);
   },
 
   saveLimitGroups(newGroups, _skipSync) {
@@ -147,7 +147,7 @@ const DataStore = {
     const newIds = new Set(newGroups.map(g => g.id));
     for (const id of Object.keys(oldMap))
       if (!newIds.has(id)) FirestoreSync.del('limitGroups', id);
-    this._limitGroups = [...newGroups];
+    this._limitGroups.length = 0; this._limitGroups.push(...newGroups);
   },
 
   // Stubs — tombstones not needed with per-document Firestore
