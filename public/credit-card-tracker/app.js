@@ -236,6 +236,7 @@ const FirestoreSync = {
   _status: 'local',
   _unsubscribers: [],
   _loadedCollections: new Set(),
+  _cleanupDone: false,
 
   isEnabled()      { return true; },
   getSyncKey()     { return this._syncKey; },
@@ -290,9 +291,12 @@ const FirestoreSync = {
           localStorage.setItem('cct_last_sync_time', Date.now());
           this.setSyncStatus('synced', new Date().toLocaleTimeString());
 
-          // Once all 3 collections have loaded: migrate from localStorage if Firestore is empty
           if (this._loadedCollections.size === 3) {
-            if (DataStore._cards.length === 0) _migrateLocalStorageToFirestore();
+            if (!this._cleanupDone) {
+              this._cleanupDone = true;
+              if (DataStore._cards.length === 0) _migrateLocalStorageToFirestore();
+              else _cleanupFirestore(); // deduplicate whatever is in Firestore
+            }
             const activeTab = localStorage.getItem('cct_activeTab') || 'dashboard';
             switchTab(activeTab);
           }
@@ -2390,6 +2394,58 @@ function init() {
   FirestoreSync.init();
 }
 
+function _cleanupFirestore() {
+  // Dedup whatever is already in Firestore — deletes extra docs directly
+  const cards = [...DataStore._cards];
+  const txns  = [...DataStore._transactions];
+
+  // Dedup cards
+  const cardGroups = {};
+  for (const c of cards) {
+    const k = `${c.bankName}|${c.cardName}|${c.owner}`;
+    const ex = cardGroups[k];
+    if (!ex || new Date(c.updatedAt||c.createdAt) > new Date(ex.updatedAt||ex.createdAt))
+      cardGroups[k] = c;
+  }
+  const cleanCards = Object.values(cardGroups);
+  const keepCardIds = new Set(cleanCards.map(c => c.id));
+  const cardIdRemap = {};
+  for (const c of cards)
+    if (!keepCardIds.has(c.id)) {
+      const k = `${c.bankName}|${c.cardName}|${c.owner}`;
+      cardIdRemap[c.id] = cardGroups[k].id;
+      FirestoreSync.del('cards', c.id);
+    }
+
+  // Remap + dedup transactions
+  const remapped = txns.map(t => cardIdRemap[t.cardId] ? {...t, cardId: cardIdRemap[t.cardId]} : t);
+  const txnGroups = {};
+  for (const t of remapped) {
+    const k = `${t.cardId}|${t.type}|${t.amount}|${t.date}|${(t.note||'').trim().toLowerCase()}`;
+    (txnGroups[k] = txnGroups[k] || []).push(t);
+  }
+  const cleanTxns = [];
+  for (const group of Object.values(txnGroups)) {
+    group.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    const isSpecial = group[0].type === 'spend' &&
+      Math.abs(parseFloat(group[0].amount) - 494.1) < 0.01 &&
+      group[0].date === '2026-06-21' &&
+      (group[0].note||'').trim().toLowerCase() === 'amazon';
+    cleanTxns.push(...group.slice(0, isSpecial ? 2 : 1));
+    for (const t of group.slice(isSpecial ? 2 : 1)) FirestoreSync.del('transactions', t.id);
+  }
+  // Write any transactions that had their cardId remapped
+  for (const t of cleanTxns) {
+    if (cardIdRemap[txns.find(o => o.id === t.id)?.cardId])
+      FirestoreSync.set('transactions', t.id, t);
+  }
+
+  DataStore._cards = cleanCards;
+  DataStore._transactions = cleanTxns;
+  if (cards.length !== cleanCards.length || txns.length !== cleanTxns.length)
+    console.log(`[cleanup] Cards ${cards.length}→${cleanCards.length} | Txns ${txns.length}→${cleanTxns.length}`);
+}
+
 function _migrateLocalStorageToFirestore() {
   // Only runs if Firestore was empty — migrates old localStorage data once, then clears it
   try {
@@ -2397,7 +2453,8 @@ function _migrateLocalStorageToFirestore() {
     const oldTxns   = JSON.parse(localStorage.getItem('cct_transactions') || '[]');
     const oldGroups = JSON.parse(localStorage.getItem('cct_limit_groups') || '[]');
     if (oldCards.length === 0) return;
-    // Dedup cards before migrating
+
+    // Dedup cards — keep most recently updated per (bankName, cardName, owner)
     const cardGroups = {};
     for (const c of oldCards) {
       const k = `${c.bankName}|${c.cardName}|${c.owner}`;
@@ -2407,11 +2464,26 @@ function _migrateLocalStorageToFirestore() {
     }
     const cleanCards = Object.values(cardGroups);
     const keepIds = new Set(cleanCards.map(c => c.id));
-    const cleanTxns = oldTxns.filter(t => keepIds.has(t.cardId));
+
+    // Dedup transactions — keep 1 per (cardId, type, amount, date, note), 2 for the ₹494.10 pair
+    const txnGroups = {};
+    for (const t of oldTxns.filter(t => keepIds.has(t.cardId))) {
+      const k = `${t.cardId}|${t.type}|${t.amount}|${t.date}|${(t.note||'').trim().toLowerCase()}`;
+      (txnGroups[k] = txnGroups[k] || []).push(t);
+    }
+    const cleanTxns = [];
+    for (const group of Object.values(txnGroups)) {
+      group.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      const isSpecial = group[0].type === 'spend' &&
+        Math.abs(parseFloat(group[0].amount) - 494.1) < 0.01 &&
+        group[0].date === '2026-06-21' &&
+        (group[0].note||'').trim().toLowerCase() === 'amazon';
+      cleanTxns.push(...group.slice(0, isSpecial ? 2 : 1));
+    }
+
     cleanCards.forEach(c => FirestoreSync.set('cards', c.id, c));
     cleanTxns.forEach(t => FirestoreSync.set('transactions', t.id, t));
     oldGroups.forEach(g => FirestoreSync.set('limitGroups', g.id, g));
-    // Clear localStorage so migration doesn't re-run
     localStorage.removeItem('cct_cards');
     localStorage.removeItem('cct_transactions');
     localStorage.removeItem('cct_limit_groups');
