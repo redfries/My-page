@@ -25,12 +25,12 @@ const PROJECTS: Project[] = [
   },
   {
     id: 2,
-    title: "ORBIT CRM",
-    category: "ENTERPRISE",
-    description: "Scalable customer relationship tool with offline-first architecture.",
-    tags: ["Vue", "Firebase", "Offline-First"],
+    title: "Cheque OCR",
+    category: "COMPUTER VISION",
+    description: "End-to-end Arabic cheque field localization, OCR, and verification. Cascade R-CNN + CRNN + Qwen3.5 LoRA.",
+    tags: ["Detectron2", "PyTorch", "Qwen3.5"],
     image: "https://picsum.photos/600/400?random=2",
-    link: "#"
+    link: "https://infinitys.me/ocr"
   },
   {
     id: 3,

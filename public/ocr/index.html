@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>arabic cheque ocr — every digit, every word, verified</title>
+  <meta name="description" content="end-to-end Arabic cheque field localization, courtesy & legal amount recognition, and cross-verification. cascade r-cnn + crnn + qwen3.5 lora." />
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75' fill='%23ffffff'>ع</text></svg>" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="/ocr/styles.css"/>
+</head>
+<body>
+  <!-- grain overlay -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <!-- top nav -->
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="#top" class="nav-mark">ocr.</a>
+      <nav class="nav-links">
+        <a href="#pipeline">pipeline</a>
+        <a href="#features">features</a>
+        <a href="#tech">tech</a>
+        <a href="#try" class="nav-cta">try it →</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+
+    <!-- ============ HERO ============ -->
+    <section class="hero">
+      <div class="hero-inner">
+        <p class="eyebrow reveal">arabic cheque ocr pipeline</p>
+
+        <h1 class="hero-title">
+          <span class="reveal">every digit.</span>
+          <span class="reveal">every word.</span>
+          <span class="reveal hero-italic"><em>verified.</em></span>
+        </h1>
+
+        <p class="hero-sub reveal">
+          a unified pipeline that detects cheque fields, reads courtesy digits and handwritten Arabic legal amounts, 
+          then cross-validates them. precision-first. deployed serverlessly.
+        </p>
+
+        <div class="hero-cta reveal">
+          <a href="https://redfries--arabic-cheque-ocr-run.modal.run" target="_blank" rel="noopener" class="btn btn-primary">open demo <span>→</span></a>
+          <a href="https://github.com/redfries/arabic-cheque-ocr" target="_blank" rel="noopener" class="btn btn-ghost">github</a>
+        </div>
+
+        <p class="hero-foot reveal">a master's project · KFUPM</p>
+      </div>
+    </section>
+
+    <!-- ============ MANIFESTO ============ -->
+    <section class="manifesto">
+      <div class="container">
+        <p class="manifesto-label">why</p>
+        <h2 class="manifesto-text">
+          handwritten cheques carry billions every year. machines that read them must be precise — 
+          not just with digits, but with every word of the legal amount. we built a system that 
+          reads <em>both</em>, then cross-checks. because trust requires <em>verification</em>.
+        </h2>
+      </div>
+    </section>
+
+    <!-- ============ PIPELINE ============ -->
+    <section id="pipeline" class="how">
+      <div class="container">
+        <div class="section-head">
+          <p class="section-label">pipeline</p>
+          <h2 class="section-title">four stages. one container. full verification.</h2>
+        </div>
+
+        <div class="steps">
+          <article class="step">
+            <div class="step-num">01</div>
+            <h3 class="step-title">detect</h3>
+            <p class="step-text">
+              cascade r-cnn with resnet-50 + fpn localizes exactly one <em>courtesy</em> box 
+              and one <em>legal</em> box per cheque. trained on annotated Arabic bank cheques.
+            </p>
+          </article>
+
+          <article class="step">
+            <div class="step-num">02</div>
+            <h3 class="step-title">read digits</h3>
+            <p class="step-text">
+              crnn + bidirectional lstm with ctc decoding transcribes the courtesy amount crop. 
+              arabic-indic numerals (١٢٣) normalized to standard digits (123). 
+              <em>96.65% digit accuracy</em>.
+            </p>
+          </article>
+
+          <article class="step">
+            <div class="step-num">03</div>
+            <h3 class="step-title">read words</h3>
+            <p class="step-text">
+              qwen3.5-0.8b fine-tuned with lora reads the handwritten Arabic legal amount. 
+              a rule-based parser with edit-distance recovery converts the text to a number.
+            </p>
+          </article>
+
+          <article class="step">
+            <div class="step-num">04</div>
+            <h3 class="step-title">verify</h3>
+            <p class="step-text">
+              the parsed legal amount is cross-checked against courtesy digits. on mismatch, 
+              courtesy-guided <em>image enhancement fallback</em> retries with 
+              border-cleaned and padded variants.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FEATURES ============ -->
+    <section id="features" class="features">
+      <div class="container">
+        <div class="section-head">
+          <p class="section-label">features</p>
+          <h2 class="section-title">built for real cheques.</h2>
+        </div>
+
+        <div class="feature-grid">
+          <div class="feature">
+            <h3>dual ocr engines</h3>
+            <p>crnn+ctc for digit sequences, qwen3.5 vision-language model for handwritten Arabic text. each model optimized for its domain.</p>
+          </div>
+
+          <div class="feature">
+            <h3>courtesy-guided fallback</h3>
+            <p>when the legal transcription doesn't match, the system re-processes with enhanced crops — border cleanup, auto-contrast, white padding — guided by the courtesy digits.</p>
+          </div>
+
+          <div class="feature">
+            <h3>arabic-to-number parser</h3>
+            <p>custom rule-based parser handles split connectors, merged words, and levenshtein edit-distance corrections for unrecognized tokens.</p>
+          </div>
+
+          <div class="feature">
+            <h3>cross-verification</h3>
+            <p>the final output includes a verification verdict — match or mismatch — with full transparency on both parsed amounts.</p>
+          </div>
+
+          <div class="feature">
+            <h3>serverless gpu</h3>
+            <p>deployed on modal with an a10g gpu. cold start in seconds. scales to zero when idle. no infrastructure to manage.</p>
+          </div>
+
+          <div class="feature">
+            <h3>interactive demo</h3>
+            <p>25 built-in sample cheques. upload your own or pick one. full visual breakdown — overlays, crops, preprocessing stages.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ METRICS ============ -->
+    <section id="metrics" class="metrics">
+      <div class="container">
+        <div class="section-head">
+          <p class="section-label">results</p>
+          <h2 class="section-title">numbers that matter.</h2>
+        </div>
+
+        <div class="metrics-group">
+          <h3 class="metrics-subtitle">part a — field detection</h3>
+          <p class="metrics-note">validation split · 177 images</p>
+          <div class="metrics-table-wrap">
+            <table class="metrics-table">
+              <thead>
+                <tr>
+                  <th>metric</th>
+                  <th>overall</th>
+                  <th>courtesy</th>
+                  <th>legal</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>mean IoU</td>
+                  <td class="num">80.21%</td>
+                  <td class="num">80.18%</td>
+                  <td class="num">80.25%</td>
+                </tr>
+                <tr>
+                  <td>acc @ IoU ≥ 0.50</td>
+                  <td class="num">97.46%</td>
+                  <td class="num">96.61%</td>
+                  <td class="num">98.31%</td>
+                </tr>
+                <tr>
+                  <td>acc @ IoU ≥ 0.75</td>
+                  <td class="num">73.73%</td>
+                  <td class="num">75.71%</td>
+                  <td class="num">71.75%</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="metrics-group">
+          <h3 class="metrics-subtitle">part b — courtesy amount ocr</h3>
+          <p class="metrics-note">professor test set · 598 samples · checkpoint v1_last</p>
+          <div class="metrics-table-wrap">
+            <table class="metrics-table">
+              <thead>
+                <tr>
+                  <th>digit accuracy</th>
+                  <th>exact match</th>
+                  <th>insertions</th>
+                  <th>deletions</th>
+                  <th>substitutions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="num">96.65%</td>
+                  <td class="num">87.79%</td>
+                  <td class="num">26</td>
+                  <td class="num">42</td>
+                  <td class="num">19</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TECH ============ -->
+    <section id="tech" class="tech">
+      <div class="container">
+        <div class="section-head">
+          <p class="section-label">under the hood</p>
+          <h2 class="section-title">technical detail, briefly.</h2>
+        </div>
+
+        <div class="tech-grid">
+          <div class="tech-item">
+            <p class="tech-key">detector</p>
+            <p class="tech-val">cascade r-cnn · resnet-50 + fpn · detectron2</p>
+          </div>
+          <div class="tech-item">
+            <p class="tech-key">courtesy ocr</p>
+            <p class="tech-val">crnn + bilstm + ctc · custom pytorch architecture</p>
+          </div>
+          <div class="tech-item">
+            <p class="tech-key">legal ocr</p>
+            <p class="tech-val">qwen3.5-0.8b · lora fine-tuned · peft · transformers</p>
+          </div>
+          <div class="tech-item">
+            <p class="tech-key">preprocessing</p>
+            <p class="tech-val">opencv · pillow · clahe · morphological background subtraction</p>
+          </div>
+          <div class="tech-item">
+            <p class="tech-key">interface</p>
+            <p class="tech-val">streamlit · base64 inline rendering for serverless compatibility</p>
+          </div>
+          <div class="tech-item">
+            <p class="tech-key">deployment</p>
+            <p class="tech-val">modal · a10g gpu · persistent volumes · serverless web endpoint</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TRY IT / CTA ============ -->
+    <section id="try" class="cta">
+      <div class="container">
+        <p class="cta-eyebrow">try it</p>
+        <h2 class="cta-title">
+          upload a cheque. <em>see the pipeline run.</em>
+        </h2>
+        <p class="cta-sub">
+          this is a master's research project at kfupm. the demo processes real cheque images 
+          end-to-end on a gpu-backed serverless container.
+        </p>
+
+        <div class="cta-actions">
+          <a class="card-link" href="https://redfries--arabic-cheque-ocr-run.modal.run" target="_blank" rel="noopener">
+            <div class="card-link-inner">
+              <p class="card-num">01</p>
+              <h3>open the demo</h3>
+              <p>launches in a new tab. select a sample cheque or upload your own. free, no signup.</p>
+              <span class="card-arrow">→</span>
+            </div>
+          </a>
+
+          <a class="card-link card-link-accent" href="https://github.com/redfries/arabic-cheque-ocr" target="_blank" rel="noopener">
+            <div class="card-link-inner">
+              <p class="card-num">02</p>
+              <h3>view the source</h3>
+              <p>full pipeline code, training notebooks, model architecture, and deployment config. open source.</p>
+              <span class="card-arrow">→</span>
+            </div>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FOOTER ============ -->
+    <footer class="footer">
+      <div class="container footer-inner">
+        <div class="footer-mark">
+          <p class="footer-title">ocr.</p>
+          <p class="footer-sub">arabic cheque ocr pipeline</p>
+        </div>
+
+        <div class="footer-meta">
+          <p>a master's research project</p>
+          <p>king fahd university of petroleum and minerals</p>
+          <p class="footer-year">2026</p>
+        </div>
+      </div>
+    </footer>
+
+  </main>
+
+  <script src="/ocr/script.js"></script>
+</body>
+</html>

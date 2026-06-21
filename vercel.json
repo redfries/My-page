@@ -3,6 +3,10 @@
     {
       "source": "/pre/:path*",
       "destination": "/pre/index.html"
+    },
+    {
+      "source": "/ocr/:path*",
+      "destination": "/ocr/index.html"
     }
   ],
   "headers": [
