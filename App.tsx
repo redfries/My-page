@@ -294,7 +294,7 @@ const ProjectCard: React.FC<{ project: Project }> = ({ project }) => {
 const InfinitySymbol: React.FC<{ className?: string }> = ({ className }) => (
   <svg 
     viewBox="0 0 200 100" 
-    className={`w-full max-w-[480px] h-auto text-white ${className}`}
+    className={`w-full max-w-[420px] h-auto text-white ${className}`}
     fill="none" 
     xmlns="http://www.w3.org/2000/svg"
   >
@@ -318,9 +318,9 @@ const InfinitySymbol: React.FC<{ className?: string }> = ({ className }) => (
  * as --infinity-h. The two text blocks are anchored to the section's centre
  * line and offset by half that height, so the composition holds on every
  * screen instead of relying on fixed vh guesses. The fallback value matches
- * the SVG's rendered height (it is 2:1, capped at 480px wide).
+ * the SVG's rendered height (it is 2:1, capped at 420px wide).
  */
-const FIGURE_HALF = 'var(--infinity-h, min(240px, calc(40vw - 20px))) / 2';
+const FIGURE_HALF = 'var(--infinity-h, min(210px, calc(35vw - 20px))) / 2';
 const ABOVE_FIGURE = `calc(50% + ${FIGURE_HALF})`;
 
 const MainHero: React.FC = () => {
