@@ -10,7 +10,6 @@ Personal portfolio website and suite of web applications hosted at [https://www.
 - **Main Portfolio**: [infinitys.me](https://www.infinitys.me/)
 - **Reading with AI (PRE)**: [infinitys.me/pre/](https://www.infinitys.me/pre/)
 - **Arabic Cheque OCR**: [infinitys.me/ocr/](https://www.infinitys.me/ocr/)
-- **Credit Card Tracker**: [infinitys.me/credit-card-tracker/](https://www.infinitys.me/credit-card-tracker/)
 
 ## 🤖 AI Agent Instructions
 
