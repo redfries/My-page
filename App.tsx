@@ -320,8 +320,8 @@ const InfinitySymbol: React.FC<{ className?: string }> = ({ className }) => (
  * screen instead of relying on fixed vh guesses. The fallback value matches
  * the SVG's rendered height (it is 2:1, capped at 420px wide).
  */
-const FIGURE_HALF = 'var(--infinity-h, min(210px, calc(35vw - 20px))) / 2';
-const ABOVE_FIGURE = `calc(50% + ${FIGURE_HALF})`;
+const FIGURE_HALF = 'var(--infinity-h, 210px) / 2';
+const ABOVE_FIGURE = `calc(50% + ${FIGURE_HALF} + 8px)`;
 
 const MainHero: React.FC = () => {
   const [heroStatus, setHeroStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
@@ -344,33 +344,33 @@ const MainHero: React.FC = () => {
         </div>
       )}
 
-      {/* Upper text — sits just above the figure */}
+      {/* Upper text — sits closely above the figure */}
       <div
         className="absolute inset-x-0 top-0 flex flex-col items-center justify-end px-6 pointer-events-none"
         style={{ bottom: ABOVE_FIGURE }}
       >
         <h2
-          className="text-[clamp(0.8rem,2.2vw,1.875rem)] font-light tracking-[0.8em] text-neutral-500 uppercase animate-fade-in-up reveal-1 mb-5 sm:mb-8"
+          className="text-[clamp(0.85rem,2vw,1.5rem)] font-light tracking-[0.8em] text-neutral-400 uppercase animate-fade-in-up reveal-1 mb-0"
           style={{ textIndent: '0.8em' }}
         >
           To
         </h2>
       </div>
 
-      {/* Lower text — sits just below the figure */}
+      {/* Lower text — sits closely below the figure */}
       <div
         className="absolute inset-x-0 bottom-0 flex flex-col items-center justify-start px-6 text-center pointer-events-none"
         style={{ top: ABOVE_FIGURE }}
       >
         <h1
-          className="text-[clamp(1.5rem,6.5vw,4.5rem)] font-bold tracking-[0.2em] text-transparent bg-clip-text bg-gradient-to-r from-neutral-600 via-white to-neutral-600 animate-shimmer font-['Syncopate'] uppercase animate-fade-in-up reveal-2 mt-5 sm:mt-8 leading-tight"
+          className="text-[clamp(1.5rem,6vw,4.25rem)] font-bold tracking-[0.2em] text-transparent bg-clip-text bg-gradient-to-r from-neutral-500 via-white to-neutral-500 animate-shimmer font-['Syncopate'] uppercase animate-fade-in-up reveal-2 mt-0 leading-none"
           style={{ textIndent: '0.2em' }}
         >
           And Beyond
         </h1>
 
-        <p className="max-w-md mx-auto text-neutral-500 text-xs sm:text-sm md:text-base tracking-widest mt-8 sm:mt-10 font-mono border-l border-white/20 pl-4 text-left animate-fade-in reveal-3 [@media(max-height:640px)]:hidden">
-          EXPLORING THE BOUNDARIES OF MACHINE INTELLIGENCE AND APPLIED AI RESEARCH.
+        <p className="max-w-md mx-auto text-neutral-500 text-[11px] sm:text-xs tracking-[0.2em] mt-4 font-mono text-center uppercase animate-fade-in reveal-3 opacity-75 [@media(max-height:640px)]:hidden">
+          EXPLORING THE BOUNDARIES OF MACHINE INTELLIGENCE AND APPLIED AI RESEARCH
         </p>
       </div>
 
