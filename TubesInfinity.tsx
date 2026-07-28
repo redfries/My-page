@@ -377,8 +377,11 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
         parallax.tx = (e.clientX / window.innerWidth - 0.5) * 2;
         parallax.ty = (e.clientY / window.innerHeight - 0.5) * 2;
       };
-      const onClick = () => {
+      const onClick = (e: MouseEvent) => {
         if (phase !== 'idle') return;
+        // Don't trigger if user is clicking interactive buttons or links
+        const target = e.target as HTMLElement;
+        if (target && (target.tagName === 'A' || target.tagName === 'BUTTON' || target.closest('a, button'))) return;
         const baseHue = Math.random();
         tubes.forEach((tube, i) => {
           const c = new THREE.Color().setHSL((baseHue + i * 0.09) % 1, 0.75, 0.72);
@@ -391,7 +394,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
         bloomPass.strength = 0.9;
       };
       window.addEventListener('pointermove', onPointerMove, { passive: true });
-      canvas.addEventListener('click', onClick);
+      window.addEventListener('click', onClick);
       window.addEventListener('resize', resize);
 
       // Pause when the hero is off-screen or the tab is hidden.
@@ -625,6 +628,12 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
           group.rotation.x += parallax.y * 0.06;
         }
 
+        // Parallax scroll: offset 3D infinity figure upwards in world space as user scrolls down
+        const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+        const visibleH = 2 * tanHalf * baseCameraZ;
+        const scrollWorldY = (window.scrollY / window.innerHeight) * visibleH;
+        group.position.y += scrollWorldY;
+
         starField.rotation.y += dt * 0.004;
         starField.rotation.z += dt * 0.0012;
         starField.position.x += (-parallax.x * 1.4 - starField.position.x) * 0.02;
@@ -694,7 +703,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
         document.removeEventListener('visibilitychange', onVisibility);
         window.removeEventListener('pointermove', onPointerMove);
         window.removeEventListener('resize', resize);
-        canvas.removeEventListener('click', onClick);
+        window.removeEventListener('click', onClick);
         heroWarp.strength = 0;
         disposables.forEach((d) => d.dispose());
         composer.dispose?.();
@@ -716,7 +725,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className={`absolute inset-0 w-full h-full block transition-opacity duration-1000 ${
+      className={`fixed inset-0 w-full h-full block pointer-events-none z-0 transition-opacity duration-1000 ${
         status === 'ready' ? 'opacity-100' : 'opacity-0'
       }`}
       style={{ touchAction: 'manipulation' }}

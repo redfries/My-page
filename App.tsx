@@ -410,7 +410,7 @@ const ProjectsSection: React.FC = () => {
 
 const AboutSection: React.FC = () => {
   return (
-    <section id="about" className="py-32 relative z-10 bg-[#080808] select-none cursor-default">
+    <section id="about" className="py-32 relative z-10 bg-[#080808]/80 backdrop-blur-sm select-none cursor-default">
       <div className="container mx-auto px-6 md:px-12">
         
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
@@ -471,7 +471,7 @@ const AboutSection: React.FC = () => {
 
 const Footer: React.FC = () => {
   return (
-    <footer className="py-12 relative z-10 border-t border-white/5 bg-black text-center select-none cursor-default">
+    <footer className="py-12 relative z-10 border-t border-white/5 bg-black/80 backdrop-blur-sm text-center select-none cursor-default">
       <div className="flex flex-col items-center gap-4">
         <div className="text-white font-['Syncopate'] font-normal tracking-widest">SHABAAZ HUSSAIN</div>
         <p className="text-neutral-600 text-xs font-mono tracking-widest uppercase">
