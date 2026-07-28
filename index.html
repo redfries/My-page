@@ -76,6 +76,33 @@
         background-size: 200% auto;
         animation: shimmer 8s linear infinite;
       }
+      /* Hero reveal, timed to land as the infinity finishes tracing */
+      @keyframes fade-in-up {
+        from { opacity: 0; transform: translateY(18px); }
+        to { opacity: 1; transform: none; }
+      }
+      @keyframes fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      .animate-fade-in-up { animation: fade-in-up 1.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+      .animate-fade-in { animation: fade-in 1.3s ease both; }
+      .reveal-1 { animation-delay: 2.5s; }
+      .reveal-2 { animation-delay: 2.8s; }
+      .reveal-3 { animation-delay: 3.2s; }
+      @media (prefers-reduced-motion: reduce) {
+        .animate-float,
+        .animate-pulse-glow,
+        .animate-shimmer,
+        .infinity-path { animation: none; }
+        .infinity-path { stroke-dashoffset: 0; }
+        .animate-fade-in-up,
+        .animate-fade-in {
+          animation: none;
+          opacity: 1;
+          transform: none;
+        }
+      }
     </style>
   <script type="importmap">
 {

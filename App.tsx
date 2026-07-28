@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Github, Linkedin, Mail, ExternalLink, ArrowRight, ArrowDown, Briefcase, User, MessageSquare } from 'lucide-react';
+import TubesInfinity, { heroWarp } from './TubesInfinity';
 
 // --- Types ---
 interface Project {
@@ -140,6 +141,22 @@ const ParticleGrid: React.FC = () => {
             point.vy -= moveY * 0.1;
         }
 
+        // The hero's 3D comet warps the grid as it traces the infinity.
+        // heroWarp.strength stays 0 unless that scene is running, so this is
+        // inert when the 3D hero is absent.
+        if (heroWarp.strength > 0) {
+          const hdx = heroWarp.x - point.x;
+          const hdy = heroWarp.y - point.y;
+          const hDist = Math.sqrt(hdx * hdx + hdy * hdy);
+          const hRadius = 280;
+          if (hDist < hRadius) {
+            const angle = Math.atan2(hdy, hdx);
+            const force = ((hRadius - hDist) / hRadius) * heroWarp.strength;
+            point.vx -= Math.cos(angle) * force * spacing * pushFactor * 0.16;
+            point.vy -= Math.sin(angle) * force * spacing * pushFactor * 0.16;
+          }
+        }
+
         // Return to origin (spring physics)
         const homeDx = point.originX - point.x;
         const homeDy = point.originY - point.y;
@@ -210,7 +227,7 @@ const Header: React.FC = () => {
     <header className={`fixed top-0 left-0 w-full z-50 transition-all duration-500 ${isScrolled ? 'bg-black/90 backdrop-blur-md py-4 border-b border-white/5' : 'bg-transparent py-8'}`}>
       <div className="container mx-auto px-6 md:px-12 flex justify-between items-center">
         {/* Brand Name */}
-        <div className="text-xl font-normal tracking-[0.2em] text-white flex items-center gap-2 font-['Syncopate'] cursor-default select-none">
+        <div className="text-[0.7rem] sm:text-base md:text-xl font-normal tracking-[0.15em] sm:tracking-[0.2em] text-white flex items-center gap-2 font-['Syncopate'] cursor-default select-none whitespace-nowrap">
           SHABAAZ HUSSAIN
         </div>
         
@@ -296,38 +313,74 @@ const InfinitySymbol: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+/**
+ * The 3D hero measures how tall the infinity actually renders and publishes it
+ * as --infinity-h. The two text blocks are anchored to the section's centre
+ * line and offset by half that height, so the composition holds on every
+ * screen instead of relying on fixed vh guesses. The fallback value matches
+ * the SVG's rendered height (it is 2:1, capped at 600px wide).
+ */
+const FIGURE_HALF = 'var(--infinity-h, min(300px, calc(50vw - 24px))) / 2';
+const ABOVE_FIGURE = `calc(50% + ${FIGURE_HALF})`;
+
 const MainHero: React.FC = () => {
+  const [heroStatus, setHeroStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
+
   return (
-    <section className="min-h-screen flex flex-col items-center justify-center relative z-10 px-6 overflow-hidden select-none cursor-default">
-      
-      <div className="w-full max-w-5xl mx-auto text-center flex flex-col items-center gap-6">
-        
-        {/* Top Text - Lowered slightly with larger margin */}
-        <h2 className="text-xl md:text-3xl font-light tracking-[0.8em] text-neutral-500 uppercase animate-fade-in-up mt-24">
+    <section
+      className="relative min-h-screen z-10 overflow-hidden select-none cursor-default"
+      style={{ minHeight: '100svh' }}
+    >
+      {/* Braided 3D infinity. Transparent canvas, so ParticleGrid shows through. */}
+      <TubesInfinity onStatusChange={setHeroStatus} />
+
+      {/* Fallback for no WebGL / slow chunk — the original SVG, unchanged */}
+      {heroStatus === 'failed' && (
+        <div className="absolute inset-0 flex items-center justify-center px-6 pointer-events-none">
+          <div className="relative w-full flex justify-center animate-float">
+            <InfinitySymbol />
+            <div className="absolute top-1/2 left-1/2 w-3/4 h-32 bg-white/5 blur-[80px] rounded-full animate-pulse-glow" />
+          </div>
+        </div>
+      )}
+
+      {/* Upper text — sits just above the figure */}
+      <div
+        className="absolute inset-x-0 top-0 flex flex-col items-center justify-end px-6 pointer-events-none"
+        style={{ bottom: ABOVE_FIGURE }}
+      >
+        <h2
+          className="text-[clamp(0.8rem,2.2vw,1.875rem)] font-light tracking-[0.8em] text-neutral-500 uppercase animate-fade-in-up reveal-1 mb-5 sm:mb-8"
+          style={{ textIndent: '0.8em' }}
+        >
           To
         </h2>
+      </div>
 
-        {/* Centerpiece Symbol - Floating with Pulse */}
-        <div className="relative py-10 md:py-14 w-full flex justify-center animate-fade-in duration-1000 delay-300 animate-float">
-           <InfinitySymbol />
-           {/* Breathing Glow Effect */}
-           <div className="absolute top-1/2 left-1/2 w-3/4 h-32 bg-white/5 blur-[80px] rounded-full pointer-events-none animate-pulse-glow" />
-        </div>
-
-        {/* Bottom Text - Shimmering */}
-        <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-[0.2em] text-transparent bg-clip-text bg-gradient-to-r from-neutral-600 via-white to-neutral-600 animate-shimmer font-['Syncopate'] uppercase animate-fade-in-up delay-500">
+      {/* Lower text — sits just below the figure */}
+      <div
+        className="absolute inset-x-0 bottom-0 flex flex-col items-center justify-start px-6 text-center pointer-events-none"
+        style={{ top: ABOVE_FIGURE }}
+      >
+        <h1
+          className="text-[clamp(1.5rem,6.5vw,4.5rem)] font-bold tracking-[0.2em] text-transparent bg-clip-text bg-gradient-to-r from-neutral-600 via-white to-neutral-600 animate-shimmer font-['Syncopate'] uppercase animate-fade-in-up reveal-2 mt-5 sm:mt-8 leading-tight"
+          style={{ textIndent: '0.2em' }}
+        >
           And Beyond
         </h1>
 
-        <p className="max-w-md mx-auto text-neutral-500 text-sm md:text-base tracking-widest mt-10 font-mono border-l border-white/20 pl-4 text-left">
+        <p className="max-w-md mx-auto text-neutral-500 text-xs sm:text-sm md:text-base tracking-widest mt-8 sm:mt-10 font-mono border-l border-white/20 pl-4 text-left animate-fade-in reveal-3 [@media(max-height:640px)]:hidden">
           EXPLORING THE BOUNDARIES OF DIGITAL INTERACTION AND MINIMALIST DESIGN.
         </p>
+      </div>
 
-      </div>
-      
-      <div className="absolute bottom-12 left-1/2 -translate-x-1/2 animate-bounce text-white/30 hover:text-white transition-colors cursor-pointer">
+      <a
+        href="#projects"
+        aria-label="Scroll to projects"
+        className="absolute bottom-8 sm:bottom-12 left-1/2 -translate-x-1/2 animate-bounce text-white/30 hover:text-white transition-colors cursor-pointer p-3 [@media(max-height:560px)]:hidden"
+      >
         <ArrowDown size={24} />
-      </div>
+      </a>
     </section>
   );
 };

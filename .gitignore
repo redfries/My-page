@@ -17,6 +17,7 @@ dist-ssr
 # Tool metadata & logs
 .antigravity/
 migrated_prompt_history/
+scratch/
 
 # Editor directories and files
 .vscode/*
@@ -28,3 +29,4 @@ migrated_prompt_history/
 *.njsproj
 *.sln
 *.sw?
+.mcp.json

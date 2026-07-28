@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>∞ LAB — Tubes Ignition Experiment</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%23000000'/><text x='50' y='70' font-family='sans-serif' font-size='60' font-weight='bold' fill='%23ffffff' text-anchor='middle'>S</text></svg>" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #030303;
+      color: #fff;
+      font-family: 'Space Grotesk', sans-serif;
+      overflow: hidden;
+      cursor: default;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    #scene {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* ---------- Hyper-speed fazer streaks (background, load phase) ---------- */
+    .longfazers {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 1;
+      transition: opacity 1.2s ease-out;
+    }
+    .longfazers.done { opacity: 0; }
+    .longfazers span {
+      position: absolute;
+      height: 1px;
+      width: 22%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+      opacity: 0.35;
+    }
+    .longfazers span:nth-child(1) { top: 16%; animation: lf 0.7s linear infinite; animation-delay: -0.5s; }
+    .longfazers span:nth-child(2) { top: 34%; animation: lf 0.9s linear infinite; animation-delay: -0.1s; }
+    .longfazers span:nth-child(3) { top: 52%; animation: lf 0.6s linear infinite; animation-delay: -0.3s; }
+    .longfazers span:nth-child(4) { top: 68%; animation: lf 0.8s linear infinite; animation-delay: -0.6s; }
+    .longfazers span:nth-child(5) { top: 84%; animation: lf 0.55s linear infinite; animation-delay: -0.2s; }
+    @keyframes lf {
+      0%   { left: 110%; opacity: 0.5; }
+      100% { left: -30%; opacity: 0; }
+    }
+
+    /* ---------- Overlay content ---------- */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      text-align: center;
+      padding: 0 24px;
+    }
+    /* empty region reserved for the 3D infinity behind */
+    .symbol-space { height: 46vh; }
+
+    .word-to {
+      font-weight: 300;
+      font-size: clamp(16px, 2.4vw, 30px);
+      letter-spacing: 0.8em;
+      text-indent: 0.8em; /* compensate tracking so it looks centered */
+      color: #737373;
+      text-transform: uppercase;
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity 1.2s ease, transform 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .word-beyond {
+      font-family: 'Syncopate', sans-serif;
+      font-weight: 700;
+      font-size: clamp(28px, 5.4vw, 72px);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      background: linear-gradient(90deg, #525252, #ffffff, #525252);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: shimmer 8s linear infinite;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 1.4s ease 0.25s, transform 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.25s;
+    }
+    body.revealed .word-to,
+    body.revealed .word-beyond {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    @keyframes shimmer {
+      0% { background-position: 200% center; }
+      100% { background-position: -200% center; }
+    }
+
+    /* ---------- HUD ---------- */
+    .hud {
+      position: fixed;
+      z-index: 20;
+      font-family: 'Space Grotesk', monospace;
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.35);
+      pointer-events: none;
+    }
+    .hud-top-left { top: 28px; left: 32px; display: flex; align-items: center; gap: 10px; }
+    .hud-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #34d399;
+      box-shadow: 0 0 8px #34d399;
+      animation: blink 1.6s ease-in-out infinite;
+    }
+    @keyframes blink { 50% { opacity: 0.3; } }
+
+    .hud-top-right { top: 28px; right: 32px; pointer-events: auto; }
+    .hud-top-right a {
+      color: rgba(255,255,255,0.35);
+      text-decoration: none;
+      border: 1px solid rgba(255,255,255,0.12);
+      padding: 8px 14px;
+      transition: color 0.3s, border-color 0.3s;
+    }
+    .hud-top-right a:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
+
+    .hud-bottom {
+      bottom: 34px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      transition: opacity 0.8s ease;
+    }
+    .progress-track {
+      width: 220px;
+      height: 1px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: rgba(255,255,255,0.85);
+      box-shadow: 0 0 12px rgba(255,255,255,0.8);
+    }
+    #hud-status { transition: opacity 0.6s ease; }
+
+    .hint {
+      position: fixed;
+      bottom: 34px;
+      right: 32px;
+      z-index: 20;
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0);
+      transition: color 1s ease 0.6s;
+      pointer-events: none;
+    }
+    body.revealed .hint { color: rgba(255,255,255,0.25); }
+
+    /* ---------- SVG fallback (no WebGL) ---------- */
+    .fallback {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+      pointer-events: none;
+    }
+    .fallback svg { width: min(600px, 80vw); height: auto; }
+    .fallback .infinity-path {
+      stroke-dasharray: 1000;
+      stroke-dashoffset: 1000;
+      animation: dash 3s ease-in-out forwards;
+      filter: drop-shadow(0 0 20px rgba(255,255,255,0.8));
+    }
+    @keyframes dash { to { stroke-dashoffset: 0; } }
+    body.no-webgl .fallback { display: flex; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .longfazers, .hud-dot, .word-beyond { animation: none; }
+      .word-to, .word-beyond { transition-duration: 0.01s; }
+    }
+    @media (max-width: 640px) {
+      .hud-top-left span:last-child { display: none; }
+      .hint { left: 50%; right: auto; transform: translateX(-50%); text-align: center; }
+      .symbol-space { height: 40vh; }
+    }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+
+  <!-- Hyper-speed background streaks (loader phase) -->
+  <div class="longfazers" id="fazers">
+    <span></span><span></span><span></span><span></span><span></span>
+  </div>
+
+  <!-- SVG fallback if WebGL unavailable -->
+  <div class="fallback">
+    <svg viewBox="0 0 200 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M100 50 C 100 50, 150 100, 175 75 C 200 50, 150 0, 100 50 C 50 100, 0 50, 25 25 C 50 0, 100 50, 100 50"
+        stroke="#ffffff" stroke-width="2" stroke-linecap="round" class="infinity-path" />
+    </svg>
+  </div>
+
+  <!-- Hero words -->
+  <div class="overlay">
+    <h2 class="word-to">To</h2>
+    <div class="symbol-space"></div>
+    <h1 class="word-beyond">And Beyond</h1>
+  </div>
+
+  <!-- HUD -->
+  <div class="hud hud-top-left">
+    <span class="hud-dot"></span>
+    <span>∞ DRIVE // IGNITION SEQUENCE</span>
+  </div>
+  <div class="hud hud-top-right">
+    <a href="/">← Back to site</a>
+  </div>
+  <div class="hud hud-bottom" id="hud-bottom">
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    <span id="hud-status">Synchronizing vectors</span>
+  </div>
+  <div class="hint">Click to shift spectrum</div>
+
+  <script type="module" src="./infinity-tubes.js"></script>
+</body>
+</html>

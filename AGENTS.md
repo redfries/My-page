@@ -27,6 +27,7 @@ Shabaaz-Portfolio/
 ├── AGENTS.md                         # THIS FILE - Master Agent Instructions
 ├── README.md                         # Human-readable repository overview
 ├── App.tsx                           # Main Portfolio Application (React 19)
+├── TubesInfinity.tsx                 # 3D braided-infinity hero (Three.js, lazy-loaded)
 ├── index.html                        # Main HTML entry point & Tailwind font imports
 ├── index.css                         # Global CSS styles
 ├── index.tsx                         # React 19 root mounting logic
@@ -43,6 +44,9 @@ Shabaaz-Portfolio/
     │   ├── index.html                # Cheque OCR research landing page
     │   ├── styles.css                # Dark technical dashboard layout
     │   └── script.js                 # Interactive pipeline visualizer & reveals
+    ├── lab/                          # Animation sandbox (infinitys.me/lab) - noindex
+    │   ├── index.html                # Standalone tubes-infinity experiment
+    │   └── infinity-tubes.js         # Self-contained Three.js engine (CDN importmap)
     └── credit-card-tracker/          # Subproject 3: CardTrack Pro (infinitys.me/credit-card-tracker)
         ├── index.html                # Single-page app layout (Tab Navigation, Modals, FAB)
         ├── style.css                 # Custom dark UI styling for CardTrack Pro
@@ -56,8 +60,8 @@ Shabaaz-Portfolio/
 ### A. Main Portfolio App (`App.tsx`, `index.html`)
 - **Route**: `https://www.infinitys.me/`
 - **Key Sections**:
-  1. **ParticleGrid Canvas**: Interactive canvas background that distorts particles smoothly based on mouse proximity.
-  2. **Hero Section**: Monospaced "SHABAAZ HUSSAIN // AI RESEARCH & R&D", main tagline, status indicator, and call-to-action.
+  1. **ParticleGrid Canvas**: Interactive canvas background that distorts particles smoothly based on mouse proximity. Also accepts a warp point from the hero comet via the exported `heroWarp` object in `TubesInfinity.tsx` (inert when that scene is not running).
+  2. **Hero Section**: 3D braided-infinity animation (`TubesInfinity.tsx`) that traces itself on load, then drifts in zero-g. Three.js is **dynamically imported** so it code-splits and never blocks first paint. Degrades to the original SVG infinity when WebGL is unavailable or the chunk is slow, and renders a static figure under `prefers-reduced-motion`. The component publishes the figure's rendered height as the `--infinity-h` CSS variable; the hero text anchors to it so the composition holds at every viewport size. Do not hardcode hero spacing in `vh`.
   3. **Specializations**: Focus areas in **Machine Learning**, **LLMs**, **NLP**, and **AI System R&D**.
   4. **Tech Stack**: Categorized badges covering Python/PyTorch/TensorFlow, React/TypeScript/Next.js, Node.js/FastAPI/SQL, and LangChain/Hugging Face.
   5. **Projects Grid**: Dynamic project cards highlighting:
