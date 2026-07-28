@@ -322,6 +322,9 @@ const InfinitySymbol: React.FC<{ className?: string }> = ({ className }) => (
  */
 const FIGURE_HALF = 'var(--infinity-h, 210px) / 2';
 const ABOVE_FIGURE = `calc(50% + ${FIGURE_HALF} + 8px)`;
+// The lower block sits further from the figure than the upper "TO", so
+// "AND BEYOND" gets room to breathe beneath the loop.
+const BELOW_FIGURE = `calc(50% + ${FIGURE_HALF} + 34px)`;
 
 const MainHero: React.FC = () => {
   const [heroStatus, setHeroStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
@@ -350,8 +353,8 @@ const MainHero: React.FC = () => {
         style={{ bottom: ABOVE_FIGURE }}
       >
         <h2
-          className="text-[clamp(0.85rem,2vw,1.5rem)] font-light tracking-[0.8em] text-neutral-400 uppercase animate-fade-in-up reveal-1 mb-0"
-          style={{ textIndent: '0.8em' }}
+          className="text-[clamp(0.9rem,2.1vw,1.65rem)] font-normal tracking-[0.5em] text-neutral-200 uppercase animate-fade-in-up reveal-1 mb-0 font-['Syncopate'] drop-shadow-[0_0_16px_rgba(125,211,252,0.18)]"
+          style={{ textIndent: '0.5em' }}
         >
           To
         </h2>
@@ -360,16 +363,16 @@ const MainHero: React.FC = () => {
       {/* Lower text — sits closely below the figure */}
       <div
         className="absolute inset-x-0 bottom-0 flex flex-col items-center justify-start px-6 text-center pointer-events-none"
-        style={{ top: ABOVE_FIGURE }}
+        style={{ top: BELOW_FIGURE }}
       >
         <h1
-          className="text-[clamp(1.5rem,6vw,4.25rem)] font-bold tracking-[0.2em] text-transparent bg-clip-text bg-gradient-to-r from-neutral-500 via-white to-neutral-500 animate-shimmer font-['Syncopate'] uppercase animate-fade-in-up reveal-2 mt-0 leading-none"
-          style={{ textIndent: '0.2em' }}
+          className="text-[clamp(1.5rem,6vw,4rem)] font-normal tracking-[0.35em] text-transparent bg-clip-text bg-gradient-to-r from-[#7dd3fc]/70 via-white to-[#b39dff]/70 animate-shimmer font-['Syncopate'] uppercase animate-fade-in-up reveal-2 mt-0 leading-none drop-shadow-[0_0_22px_rgba(179,157,255,0.16)]"
+          style={{ textIndent: '0.35em' }}
         >
           And Beyond
         </h1>
 
-        <p className="max-w-md mx-auto text-neutral-500 text-[11px] sm:text-xs tracking-[0.2em] mt-4 font-mono text-center uppercase animate-fade-in reveal-3 opacity-75 [@media(max-height:640px)]:hidden">
+        <p className="max-w-md mx-auto text-neutral-500 text-[11px] sm:text-xs tracking-[0.2em] mt-9 font-mono text-center uppercase animate-fade-in reveal-3 opacity-75 [@media(max-height:640px)]:hidden">
           EXPLORING THE BOUNDARIES OF MACHINE INTELLIGENCE AND APPLIED AI RESEARCH
         </p>
       </div>
