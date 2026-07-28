@@ -21,6 +21,26 @@ const SHAPE = {
 const SHAPE_W = SHAPE.scale * 2 + SHAPE.braidRadius * 4;
 const SHAPE_H = (SHAPE.scale * 2) / 3 * SHAPE.yStretch + SHAPE.braidRadius * 4;
 
+const FOV = 45;
+const TAN_HALF_FOV = Math.tan((FOV / 2) * (Math.PI / 180));
+
+/**
+ * Camera distance at which the figure fills its target fraction of the
+ * viewport. Shared by the camera fit and the tube-thickness calculation, so
+ * line weight is always derived from the size the figure actually renders at.
+ */
+const fitDistance = (w: number, h: number) => {
+  const aspect = w / h;
+  // Phones fill more of the width; desktops leave breathing room. Scale target decreased by 30%, then a further 5%.
+  const fill = aspect < 0.8 ? 0.627 : aspect < 1.2 ? 0.57 : 0.475;
+  const distForWidth = SHAPE_W / (2 * TAN_HALF_FOV * aspect * fill);
+  const distForHeight = SHAPE_H / (2 * TAN_HALF_FOV * fill);
+  // Never let the figure eat the vertical space the hero text needs — this is
+  // what keeps landscape phones and short windows readable.
+  const minDist = SHAPE_H / (2 * TAN_HALF_FOV * (h < 560 ? 0.21 : 0.3));
+  return Math.max(distForWidth, distForHeight, minDist);
+};
+
 const TIMING = {
   drawDuration: 2.6,
   drawStagger: 0.14,
@@ -128,20 +148,42 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
         (navigator.hardwareConcurrency ?? 8) <= 4;
 
       const QUALITY = {
-        tubular: lowPower ? 380 : 840,
-        radial: lowPower ? 8 : 12,
+        tubular: lowPower ? 520 : 840,
+        radial: lowPower ? 10 : 12,
         stars: lowPower ? 0.55 : 1,
         sparks: lowPower ? 96 : 160,
-        maxDpr: lowPower ? 1.5 : 2,
-        bloomScale: lowPower ? 0.5 : 1,
+        // Render at the device's real pixels. A flat cap of 2 left every 3x
+        // phone — and any browser zoom past 200% — displaying an upscaled
+        // buffer, which is what read as "240p". Total pixels are budgeted
+        // instead, so a small dense screen gets native density while a 4K
+        // desktop doesn't try to render 33M pixels.
+        maxDpr: 3,
+        maxPixels: lowPower ? 3.8e6 : 8.3e6,
+        // Bloom is a blur, so it costs nothing visually to run it below the
+        // render resolution — and on phones that headroom is what pays for
+        // the higher pixel ratio above.
+        bloomScale: lowPower ? 0.6 : 1,
+        // MSAA samples on the post-processing target. EffectComposer ignores
+        // the renderer's own `antialias` flag, so this is what actually smooths
+        // the tube edges once the figure settles. Mobile GPUs are tile-based
+        // and resolve MSAA in on-chip memory, so 4x is close to free there too.
+        samples: 4,
       };
+
+      const viewportSize = () => ({
+        w: canvas.clientWidth || window.innerWidth,
+        h: canvas.clientHeight || window.innerHeight,
+      });
 
       // ---------------------------------------------------------------
       // Renderer — transparent so the site's ParticleGrid shows through
       // ---------------------------------------------------------------
       const renderer = new THREE.WebGLRenderer({
         canvas,
-        antialias: !lowPower,
+        // Nothing is ever drawn straight to the default framebuffer — the last
+        // pass composites a fullscreen quad — so an MSAA backbuffer here would
+        // only burn memory and a resolve. `QUALITY.samples` does the real work.
+        antialias: false,
         alpha: true,
         powerPreference: 'high-performance',
       });
@@ -150,9 +192,15 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
       renderer.toneMappingExposure = 0.9;
 
       const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 220);
+      const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 220);
 
-      const composer = new EffectComposer(renderer);
+      // A multisampled, half-float render target gives the whole post chain
+      // true edge antialiasing and smoother bloom (EffectComposer disposes it).
+      const composerTarget = new THREE.WebGLRenderTarget(1, 1, {
+        type: THREE.HalfFloatType,
+        samples: QUALITY.samples,
+      });
+      const composer = new EffectComposer(renderer, composerTarget);
       composer.addPass(new RenderPass(scene, camera));
       const bloomPass = new UnrealBloomPass(
         new THREE.Vector2(256, 256),
@@ -192,12 +240,26 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
         }
       }
 
+      // The figure is fitted to a much smaller box on a phone than on a
+      // desktop, so the same world-space radius lands at ~4 CSS px there and
+      // barely 1 px here. A bright line thinner than a pixel aliases no matter
+      // how much resolution or MSAA it gets, so hold a floor on line weight.
+      // Desktops already clear the floor and are left exactly as they were.
+      const BASE_TUBE_RADIUS = 0.028;
+      const MIN_TUBE_PX = 1.7;
+      const { w: fitW, h: fitH } = viewportSize();
+      const cssPerWorld = fitH / (2 * TAN_HALF_FOV * fitDistance(fitW, fitH));
+      const lineScale = Math.min(
+        1.6,
+        Math.max(1, MIN_TUBE_PX / (2 * BASE_TUBE_RADIUS * cssPerWorld))
+      );
+
       const tubes = TUBE_COLORS.map((hex, i) => {
         const curve = new BraidedLemniscate((i / TUBE_COLORS.length) * Math.PI * 2);
         const geometry = new THREE.TubeGeometry(
           curve,
           QUALITY.tubular,
-          0.028 * (i === 0 ? 1.25 : 1),
+          BASE_TUBE_RADIUS * lineScale * (i === 0 ? 1.25 : 1),
           QUALITY.radial,
           true
         );
@@ -332,35 +394,39 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
       // ---------------------------------------------------------------
       let baseCameraZ = 14;
       const resize = () => {
-        const w = canvas.clientWidth || window.innerWidth;
-        const h = canvas.clientHeight || window.innerHeight;
-        const aspect = w / h;
-        camera.aspect = aspect;
-
-        // Phones fill more of the width; desktops leave breathing room. Scale target decreased by 30% total.
-        const fill = aspect < 0.8 ? 0.66 : aspect < 1.2 ? 0.60 : 0.50;
-        const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
-        const distForWidth = SHAPE_W / (2 * tanHalf * aspect * fill);
-        const distForHeight = SHAPE_H / (2 * tanHalf * fill);
-        // Never let the figure eat the vertical space the hero text needs —
-        // this is what keeps landscape phones and short windows readable.
-        const maxHeightFraction = h < 560 ? 0.21 : 0.30;
-        const minDist = SHAPE_H / (2 * tanHalf * maxHeightFraction);
-        baseCameraZ = Math.max(distForWidth, distForHeight, minDist);
+        const { w, h } = viewportSize();
+        camera.aspect = w / h;
+        baseCameraZ = fitDistance(w, h);
         camera.position.z = baseCameraZ;
         camera.updateProjectionMatrix();
 
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, QUALITY.maxDpr));
+        const dpr = Math.min(
+          window.devicePixelRatio || 1,
+          QUALITY.maxDpr,
+          // Budget total pixels so a large dense screen doesn't render a
+          // 4K-sized frame — but never below 2, which is the ratio everything
+          // already ran at, so no device can come out of this worse off.
+          Math.max(2, Math.sqrt(QUALITY.maxPixels / Math.max(1, w * h)))
+        );
+        renderer.setPixelRatio(dpr);
         renderer.setSize(w, h, false);
+        // The composer captured a pixel ratio of 1 at construction, so without
+        // this its post chain renders at CSS resolution and gets upscaled to the
+        // screen — the whole figure then looks soft/low-res on every device.
+        composer.setPixelRatio(dpr);
         composer.setSize(w, h);
-        bloomPass.resolution.set(
-          Math.max(64, Math.round(w * QUALITY.bloomScale)),
-          Math.max(64, Math.round(h * QUALITY.bloomScale))
+        // Must come after composer.setSize, which resizes every pass to the
+        // full render resolution. `bloomPass.resolution` is only read in the
+        // constructor, so setSize is the only way to actually move the glow off
+        // the full-res path.
+        bloomPass.setSize(
+          Math.max(64, Math.round(w * dpr * QUALITY.bloomScale)),
+          Math.max(64, Math.round(h * dpr * QUALITY.bloomScale))
         );
 
         // Tell the layout how tall the figure renders, so the text never
         // collides with it on any screen.
-        const visibleH = 2 * tanHalf * baseCameraZ;
+        const visibleH = 2 * TAN_HALF_FOV * baseCameraZ;
         const px = (SHAPE_H / visibleH) * h;
         document.documentElement.style.setProperty(
           '--infinity-h',
@@ -396,6 +462,25 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
       window.addEventListener('pointermove', onPointerMove, { passive: true });
       window.addEventListener('click', onClick);
       window.addEventListener('resize', resize);
+
+      // Ctrl+/- zoom and moving the window between displays change
+      // devicePixelRatio, and neither reliably fires `resize`. Without this the
+      // canvas keeps its old backing store and the compositor upscales it,
+      // which is why zooming in used to soften the figure. Each match is
+      // one-shot, so the query is re-armed at the new ratio every time.
+      let dprQuery: MediaQueryList | undefined;
+      const onDprChange = () => {
+        resize();
+        watchDpr();
+      };
+      const watchDpr = () => {
+        dprQuery?.removeEventListener('change', onDprChange);
+        dprQuery = window.matchMedia(
+          `(resolution: ${window.devicePixelRatio}dppx)`
+        );
+        dprQuery.addEventListener('change', onDprChange);
+      };
+      watchDpr();
 
       // Pause when the hero is off-screen or the tab is hidden.
       let visible = true;
@@ -629,8 +714,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
         }
 
         // Parallax scroll: offset 3D infinity figure upwards in world space as user scrolls down
-        const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
-        const visibleH = 2 * tanHalf * baseCameraZ;
+        const visibleH = 2 * TAN_HALF_FOV * baseCameraZ;
         const scrollWorldY = (window.scrollY / window.innerHeight) * visibleH;
         group.position.y += scrollWorldY;
 
@@ -704,6 +788,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
         window.removeEventListener('pointermove', onPointerMove);
         window.removeEventListener('resize', resize);
         window.removeEventListener('click', onClick);
+        dprQuery?.removeEventListener('change', onDprChange);
         heroWarp.strength = 0;
         disposables.forEach((d) => d.dispose());
         composer.dispose?.();

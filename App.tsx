@@ -96,8 +96,14 @@ const ParticleGrid: React.FC = () => {
     const init = () => {
       width = window.innerWidth;
       height = window.innerHeight;
-      canvas.width = width;
-      canvas.height = height;
+      // Back the canvas with real device pixels. At a fixed ratio of 1 the
+      // compositor was upscaling the whole grid — 3x on a typical phone — which
+      // left the dots soft and blocky. The transform keeps every coordinate
+      // below (and the hero warp, which arrives in viewport pixels) in CSS px.
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       points = [];
 
       const cols = Math.ceil(width / spacing) + 2;
