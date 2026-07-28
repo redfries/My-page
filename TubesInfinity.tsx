@@ -48,6 +48,29 @@ const TIMING = {
   startDelay: 0.35,
 };
 
+/**
+ * Adaptive resolution. No spec sniff catches every weak GPU — `deviceMemory` is
+ * Chrome-only, and core count says little about the fill rate this scene leans
+ * on — so the render loop watches real frame times and steps the pixel ratio
+ * down when the device can't hold its budget. Downward only, with a floor, so
+ * it settles after at most a few adjustments instead of oscillating.
+ */
+const ADAPT = {
+  slowFrameSec: 0.027, // slower than ~37fps
+  stallSec: 0.5, // beyond this it's a stall (GC, tab switch), not steady load
+  // Measured in seconds of sustained slowness, not frames. Counting frames
+  // would make the worst devices wait the longest to be helped — 40 frames is
+  // 1.3s at 30fps but 8s at 5fps, which is exactly backwards.
+  slowSecsBeforeDrop: 1.5,
+  // Two steps and no further. If dropping to 60% hasn't fixed the frame rate,
+  // resolution was never the bottleneck and giving away more pixels just costs
+  // quality for nothing. Downward only, so it settles rather than oscillating;
+  // the cost is that a device throttled only while loading stays stepped down
+  // until the next reload, which is the cheaper failure of the two.
+  step: 0.2,
+  minScale: 0.6,
+};
+
 const TUBE_COLORS = ['#ffffff', '#9ae6ff', '#b39dff', '#7dd3fc', '#e2e8f0'];
 const LIGHT_COLORS = ['#7dd3fc', '#a78bfa', '#f0abfc', '#60aed5'];
 
@@ -142,32 +165,44 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
         '(prefers-reduced-motion: reduce)'
       ).matches;
       const coarse = window.matchMedia('(pointer: coarse)').matches;
-      const lowPower =
-        coarse ||
-        window.innerWidth < 768 ||
-        (navigator.hardwareConcurrency ?? 8) <= 4;
+      const cores = navigator.hardwareConcurrency ?? 8;
+      // GB of RAM, rounded down to a power of two and capped at 8. Chrome and
+      // Android only — undefined on iOS, which is what the adaptive scaler in
+      // the render loop is there to cover.
+      const deviceMemory = (navigator as { deviceMemory?: number }).deviceMemory;
+      const lowPower = coarse || window.innerWidth < 768 || cores <= 4;
+      // Budget phones already stuttered at the old resolution, so they can't
+      // share the flagship-phone path — pushing those to 3x would make a
+      // problem that already existed considerably worse.
+      const weak = lowPower && ((deviceMemory ?? 8) <= 4 || cores <= 4);
 
       const QUALITY = {
-        tubular: lowPower ? 520 : 840,
-        radial: lowPower ? 10 : 12,
-        stars: lowPower ? 0.55 : 1,
-        sparks: lowPower ? 96 : 160,
+        tubular: weak ? 380 : lowPower ? 520 : 840,
+        radial: weak ? 8 : lowPower ? 10 : 12,
+        stars: weak ? 0.35 : lowPower ? 0.55 : 1,
+        sparks: weak ? 64 : lowPower ? 96 : 160,
         // Render at the device's real pixels. A flat cap of 2 left every 3x
         // phone — and any browser zoom past 200% — displaying an upscaled
         // buffer, which is what read as "240p". Total pixels are budgeted
         // instead, so a small dense screen gets native density while a 4K
         // desktop doesn't try to render 33M pixels.
         maxDpr: 3,
-        maxPixels: lowPower ? 3.8e6 : 8.3e6,
+        maxPixels: weak ? 0.9e6 : lowPower ? 3.8e6 : 8.3e6,
+        // Floor for the budget above. 2 is what every device already ran at, so
+        // nothing regresses — except weak phones, which are deliberately let
+        // back down to roughly the pixel count they were coping with before.
+        minDpr: weak ? 1.25 : 2,
         // Bloom is a blur, so it costs nothing visually to run it below the
         // render resolution — and on phones that headroom is what pays for
         // the higher pixel ratio above.
-        bloomScale: lowPower ? 0.6 : 1,
+        bloomScale: weak ? 0.45 : lowPower ? 0.6 : 1,
         // MSAA samples on the post-processing target. EffectComposer ignores
         // the renderer's own `antialias` flag, so this is what actually smooths
-        // the tube edges once the figure settles. Mobile GPUs are tile-based
-        // and resolve MSAA in on-chip memory, so 4x is close to free there too.
-        samples: 4,
+        // the tube edges. Nearly all of the benefit is in the first two
+        // samples, and now that the tubes land 4-5 device px wide rather than
+        // barely one, 4x only bought memory: it doubled the multisample
+        // buffers, which are the largest allocation in the whole scene.
+        samples: 2,
       };
 
       const viewportSize = () => ({
@@ -393,6 +428,9 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
       // hero reserves exactly the height the figure actually occupies.
       // ---------------------------------------------------------------
       let baseCameraZ = 14;
+      // Set by the adaptive scaler in the render loop; 1 means "device is
+      // keeping up, render at the ratio the budget above chose".
+      let dprScale = 1;
       const resize = () => {
         const { w, h } = viewportSize();
         camera.aspect = w / h;
@@ -400,13 +438,19 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
         camera.position.z = baseCameraZ;
         camera.updateProjectionMatrix();
 
-        const dpr = Math.min(
-          window.devicePixelRatio || 1,
-          QUALITY.maxDpr,
-          // Budget total pixels so a large dense screen doesn't render a
-          // 4K-sized frame — but never below 2, which is the ratio everything
-          // already ran at, so no device can come out of this worse off.
-          Math.max(2, Math.sqrt(QUALITY.maxPixels / Math.max(1, w * h)))
+        const dpr = Math.max(
+          // Never render below CSS resolution: an upscaled buffer is the exact
+          // problem this whole path exists to avoid. A device that can't hold
+          // frame rate at 1:1 is better served by the SVG fallback than by a
+          // blurry 3D scene.
+          Math.min(1, window.devicePixelRatio || 1),
+          Math.min(
+            window.devicePixelRatio || 1,
+            QUALITY.maxDpr,
+            // Budget total pixels so a large dense screen doesn't render a
+            // 4K-sized frame.
+            Math.max(QUALITY.minDpr, Math.sqrt(QUALITY.maxPixels / Math.max(1, w * h)))
+          ) * dprScale
         );
         renderer.setPixelRatio(dpr);
         renderer.setSize(w, h, false);
@@ -517,6 +561,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
       let cometSpeed = 0;
       let dustTimer = 0;
       let frame = 0;
+      let slowTime = 0;
       const clock = new THREE.Clock();
       const headPos = new THREE.Vector3();
       const headTangent = new THREE.Vector3();
@@ -563,8 +608,32 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
       };
 
       const render = () => {
-        const dt = Math.min(clock.getDelta(), 0.05);
+        // The clamped dt drives the animation so a long stall can't teleport
+        // the comet; the raw value is what the adaptive scaler has to judge on,
+        // since the clamp would report a 5fps device as if it were running 20.
+        const rawDt = clock.getDelta();
+        const dt = Math.min(rawDt, 0.05);
         const elapsed = clock.elapsedTime;
+
+        // Give back resolution if the device can't sustain the frame rate.
+        // Only once idle: ignition is deliberately the heaviest stretch of the
+        // timeline, so judging a device on it down-scales hardware that handles
+        // the steady state perfectly well. Reaching idle also serves as the
+        // grace period for shader compilation and first GPU uploads. resize()
+        // only touches the camera and buffer sizes, never the timeline or draw
+        // ranges, so it is safe to call from here.
+        if (phase === 'idle' && dprScale > ADAPT.minScale) {
+          if (rawDt > ADAPT.slowFrameSec && rawDt < ADAPT.stallSec) {
+            slowTime += rawDt;
+            if (slowTime >= ADAPT.slowSecsBeforeDrop) {
+              dprScale = Math.max(ADAPT.minScale, dprScale - ADAPT.step);
+              slowTime = 0;
+              resize();
+            }
+          } else if (rawDt <= ADAPT.slowFrameSec) {
+            slowTime = Math.max(0, slowTime - rawDt);
+          }
+        }
 
         if (phase === 'ignition') {
           const raw = clamp01((elapsed - TIMING.startDelay) / TIMING.drawDuration);
