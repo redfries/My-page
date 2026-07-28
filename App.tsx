@@ -370,7 +370,7 @@ const MainHero: React.FC = () => {
         </h1>
 
         <p className="max-w-md mx-auto text-neutral-500 text-xs sm:text-sm md:text-base tracking-widest mt-8 sm:mt-10 font-mono border-l border-white/20 pl-4 text-left animate-fade-in reveal-3 [@media(max-height:640px)]:hidden">
-          EXPLORING THE BOUNDARIES OF DIGITAL INTERACTION AND MINIMALIST DESIGN.
+          EXPLORING THE BOUNDARIES OF MACHINE INTELLIGENCE AND APPLIED AI RESEARCH.
         </p>
       </div>
 
@@ -437,8 +437,8 @@ const AboutSection: React.FC = () => {
           {/* Content Column */}
           <div className="lg:col-span-8 space-y-12">
             <p className="text-2xl md:text-4xl text-neutral-300 font-light leading-relaxed">
-              I am a digital craftsman focused on creating <span className="text-white font-normal">immersive web experiences</span>. 
-              My work bridges the gap between engineered precision and artistic fluidity.
+              I am an AI & Machine Learning Engineer specializing in <span className="text-white font-normal">Deep Learning, Computer Vision, and LLMs</span>. 
+              My work bridges cutting-edge research with clean, high-precision engineering.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-8 border-t border-white/10">
