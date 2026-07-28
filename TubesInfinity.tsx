@@ -337,14 +337,14 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
         const aspect = w / h;
         camera.aspect = aspect;
 
-        // Phones fill more of the width; desktops leave breathing room. Scale target decreased by 15%.
-        const fill = aspect < 0.8 ? 0.80 : aspect < 1.2 ? 0.72 : 0.61;
+        // Phones fill more of the width; desktops leave breathing room. Scale target decreased by 20% total.
+        const fill = aspect < 0.8 ? 0.75 : aspect < 1.2 ? 0.68 : 0.575;
         const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
         const distForWidth = SHAPE_W / (2 * tanHalf * aspect * fill);
         const distForHeight = SHAPE_H / (2 * tanHalf * fill);
         // Never let the figure eat the vertical space the hero text needs —
         // this is what keeps landscape phones and short windows readable.
-        const maxHeightFraction = h < 560 ? 0.25 : 0.36;
+        const maxHeightFraction = h < 560 ? 0.24 : 0.34;
         const minDist = SHAPE_H / (2 * tanHalf * maxHeightFraction);
         baseCameraZ = Math.max(distForWidth, distForHeight, minDist);
         camera.position.z = baseCameraZ;
