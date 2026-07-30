@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 /**
  * Shared warp source, written by the hero comet and read by ParticleGrid in
@@ -8,21 +8,68 @@ import React, { useEffect, useRef, useState } from 'react';
  */
 export const heroWarp = { x: -10000, y: -10000, strength: 0 };
 
-type Status = 'loading' | 'ready' | 'failed';
-
-/** Geometry of the lemniscate, shared by the camera fit and the curve. */
-const SHAPE = {
-  scale: 5.9,
-  yStretch: 0.82,
-  depth: 0.5,
-  braidRadius: 0.13,
-};
-// Extents of the traced figure in world units (lemniscate peaks at |y| = s/3).
-const SHAPE_W = SHAPE.scale * 2 + SHAPE.braidRadius * 4;
-const SHAPE_H = (SHAPE.scale * 2) / 3 * SHAPE.yStretch + SHAPE.braidRadius * 4;
+export type HeroStatus = 'loading' | 'ready' | 'failed';
 
 const FOV = 45;
 const TAN_HALF_FOV = Math.tan((FOV / 2) * (Math.PI / 180));
+
+/**
+ * Device tier, resolved once per page. The layout helpers below and the render
+ * loop both depend on it, so it cannot be re-evaluated per call: a window
+ * resize that crossed the 768px line would otherwise change the figure's
+ * proportions out from under geometry that has already been built.
+ */
+let tier: { lowPower: boolean; weak: boolean } | undefined;
+const deviceTier = () => {
+  if (!tier) {
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    const cores = navigator.hardwareConcurrency ?? 8;
+    // GB of RAM, rounded down to a power of two and capped at 8. Chrome and
+    // Android only — undefined on iOS, which is what the adaptive ladder in the
+    // render loop is there to cover.
+    const deviceMemory = (navigator as { deviceMemory?: number }).deviceMemory;
+    const lowPower = coarse || window.innerWidth < 768 || cores <= 4;
+    tier = {
+      lowPower,
+      weak: lowPower && ((deviceMemory ?? 8) <= 4 || cores <= 4),
+    };
+  }
+  return tier;
+};
+
+/**
+ * Geometry of the lemniscate, shared by the camera fit, the curve and the
+ * hero's layout. The braid is wound wider on phones: the figure is fitted to
+ * roughly a third of the width it gets on a desktop, so at the desktop radius
+ * every strand lands inside the same ~5px bundle and the braid can't read as
+ * anything but a fuzzy line.
+ */
+function buildShape() {
+  const scale = 5.9;
+  const yStretch = 0.82;
+  const braidRadius = deviceTier().lowPower ? 0.19 : 0.13;
+  return {
+    scale,
+    yStretch,
+    braidRadius,
+    depth: 0.5,
+    // Extents of the traced figure in world units (the lemniscate peaks at
+    // |y| = scale / 3).
+    width: scale * 2 + braidRadius * 4,
+    height: ((scale * 2) / 3) * yStretch + braidRadius * 4,
+  };
+}
+let shapeCache: ReturnType<typeof buildShape> | undefined;
+const figureShape = () => (shapeCache ??= buildShape());
+
+/**
+ * How far idle drift can carry the figure's edge beyond its static box, in
+ * world units: the vertical wander plus the vertical reach of the roll about z
+ * at this width. The hero reserves it, so the text keeps its distance at every
+ * point in the drift instead of only at the pose the figure was measured in.
+ * That difference is the gap "TO" was landing inside.
+ */
+const MOTION_ENVELOPE = 0.6;
 
 /**
  * Camera distance at which the figure fills its target fraction of the
@@ -30,15 +77,35 @@ const TAN_HALF_FOV = Math.tan((FOV / 2) * (Math.PI / 180));
  * line weight is always derived from the size the figure actually renders at.
  */
 const fitDistance = (w: number, h: number) => {
+  const SHAPE = figureShape();
   const aspect = w / h;
-  // Phones fill more of the width; desktops leave breathing room. Scale target decreased by 30%, then a further 5%.
-  const fill = aspect < 0.8 ? 0.627 : aspect < 1.2 ? 0.57 : 0.475;
-  const distForWidth = SHAPE_W / (2 * TAN_HALF_FOV * aspect * fill);
-  const distForHeight = SHAPE_H / (2 * TAN_HALF_FOV * fill);
+  // Phones fill more of the width; desktops leave breathing room. A portrait
+  // phone used to get 0.627, which drew the figure ~245px wide — too small for
+  // a braid to resolve in, and small enough to read as a low-res artefact
+  // rather than a deliberate mark.
+  const fill = aspect < 0.8 ? 0.78 : aspect < 1.2 ? 0.62 : 0.475;
+  const distForWidth = SHAPE.width / (2 * TAN_HALF_FOV * aspect * fill);
+  const distForHeight = SHAPE.height / (2 * TAN_HALF_FOV * fill);
   // Never let the figure eat the vertical space the hero text needs — this is
   // what keeps landscape phones and short windows readable.
-  const minDist = SHAPE_H / (2 * TAN_HALF_FOV * (h < 560 ? 0.21 : 0.3));
+  const minDist = SHAPE.height / (2 * TAN_HALF_FOV * (h < 560 ? 0.21 : 0.3));
   return Math.max(distForWidth, distForHeight, minDist);
+};
+
+/** CSS pixels per world unit at the fitted distance. */
+const pixelsPerWorld = (w: number, h: number) =>
+  h / (2 * TAN_HALF_FOV * fitDistance(w, h));
+
+/**
+ * Publishes the box the figure can occupy, drift included, so the hero layout
+ * can reserve exactly that much room for it.
+ */
+const publishFigureBox = (w: number, h: number) => {
+  const px = (figureShape().height + MOTION_ENVELOPE * 2) * pixelsPerWorld(w, h);
+  document.documentElement.style.setProperty(
+    '--infinity-h',
+    `${Math.round(px)}px`
+  );
 };
 
 const TIMING = {
@@ -49,11 +116,13 @@ const TIMING = {
 };
 
 /**
- * Adaptive resolution. No spec sniff catches every weak GPU — `deviceMemory` is
+ * Adaptive quality. No spec sniff catches every weak GPU — `deviceMemory` is
  * Chrome-only, and core count says little about the fill rate this scene leans
- * on — so the render loop watches real frame times and steps the pixel ratio
- * down when the device can't hold its budget. Downward only, with a floor, so
- * it settles after at most a few adjustments instead of oscillating.
+ * on — so the render loop watches real frame times and gives quality back when
+ * the device can't hold its budget. Downward only, so it settles after a few
+ * adjustments instead of oscillating; the cost is that a device throttled only
+ * while loading stays stepped down until the next reload, which is the cheaper
+ * failure of the two.
  */
 const ADAPT = {
   slowFrameSec: 0.027, // slower than ~37fps
@@ -61,15 +130,29 @@ const ADAPT = {
   // Measured in seconds of sustained slowness, not frames. Counting frames
   // would make the worst devices wait the longest to be helped — 40 frames is
   // 1.3s at 30fps but 8s at 5fps, which is exactly backwards.
-  slowSecsBeforeDrop: 1.5,
-  // Two steps and no further. If dropping to 60% hasn't fixed the frame rate,
-  // resolution was never the bottleneck and giving away more pixels just costs
-  // quality for nothing. Downward only, so it settles rather than oscillating;
-  // the cost is that a device throttled only while loading stays stepped down
-  // until the next reload, which is the cheaper failure of the two.
-  step: 0.2,
-  minScale: 0.6,
+  slowSecsBeforeDrop: 1.2,
+  /**
+   * Ladder, applied in order. Resolution goes last and never far: a soft,
+   * upscaled figure is the most conspicuous way this scene can fail, whereas
+   * bloom is a wide blur that can lose half its resolution without anyone
+   * being able to point at what changed.
+   */
+  steps: [
+    { bloom: 0.72, dpr: 1 },
+    { bloom: 0.5, dpr: 1 },
+    { bloom: 0.5, dpr: 0.85 },
+    { bloom: 0.5, dpr: 0.72 },
+  ],
 };
+
+/**
+ * Once the hero has scrolled past, the figure has already been carried
+ * off-screen by the scroll parallax and the starfield is all that's left, which
+ * needs neither bloom nor 60fps. Hysteresis between the two thresholds keeps a
+ * scroll that hovers at the boundary from flipping state every frame.
+ */
+const BACKDROP_IN = 1;
+const BACKDROP_OUT = 0.85;
 
 const TUBE_COLORS = ['#ffffff', '#9ae6ff', '#b39dff', '#7dd3fc', '#e2e8f0'];
 const LIGHT_COLORS = ['#7dd3fc', '#a78bfa', '#f0abfc', '#60aed5'];
@@ -102,16 +185,41 @@ function hasWebGL(): boolean {
 
 interface Props {
   /** Called once the 3D scene is live, or if it fails and the SVG should show. */
-  onStatusChange?: (status: Status) => void;
+  onStatusChange?: (status: HeroStatus) => void;
+  /**
+   * The element in the hero layout that reserves room for the figure. The
+   * camera is offset so the figure centres on this box, which is what keeps the
+   * figure and the text agreeing on where the middle is — the canvas is fixed
+   * and viewport-sized, while the hero section is 100svh, so on a phone the two
+   * centre lines are tens of pixels apart.
+   */
+  anchorRef?: React.RefObject<HTMLElement | null>;
 }
 
-const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
+const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [status, setStatus] = useState<Status>('loading');
+  const [status, setStatus] = useState<HeroStatus>('loading');
 
   useEffect(() => {
     onStatusChange?.(status);
   }, [status, onStatusChange]);
+
+  // Reserve the figure's room before first paint. The value is pure geometry —
+  // it needs nothing from Three.js — so the hero must not have to wait on a
+  // dynamic import to lay itself out, or the text visibly jumps when the real
+  // measurement finally lands a few hundred milliseconds in. documentElement's
+  // client box is used rather than innerWidth/innerHeight because that is what
+  // a `fixed; inset: 0` canvas resolves against, scrollbar excluded.
+  useLayoutEffect(() => {
+    const publish = () =>
+      publishFigureBox(
+        document.documentElement.clientWidth,
+        document.documentElement.clientHeight
+      );
+    publish();
+    window.addEventListener('resize', publish);
+    return () => window.removeEventListener('resize', publish);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -164,21 +272,12 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
       const reducedMotion = window.matchMedia(
         '(prefers-reduced-motion: reduce)'
       ).matches;
-      const coarse = window.matchMedia('(pointer: coarse)').matches;
-      const cores = navigator.hardwareConcurrency ?? 8;
-      // GB of RAM, rounded down to a power of two and capped at 8. Chrome and
-      // Android only — undefined on iOS, which is what the adaptive scaler in
-      // the render loop is there to cover.
-      const deviceMemory = (navigator as { deviceMemory?: number }).deviceMemory;
-      const lowPower = coarse || window.innerWidth < 768 || cores <= 4;
-      // Budget phones already stuttered at the old resolution, so they can't
-      // share the flagship-phone path — pushing those to 3x would make a
-      // problem that already existed considerably worse.
-      const weak = lowPower && ((deviceMemory ?? 8) <= 4 || cores <= 4);
+      const SHAPE = figureShape();
+      const { lowPower, weak } = deviceTier();
 
       const QUALITY = {
-        tubular: weak ? 380 : lowPower ? 520 : 840,
-        radial: weak ? 8 : lowPower ? 10 : 12,
+        tubular: weak ? 420 : lowPower ? 560 : 840,
+        radial: weak ? 8 : lowPower ? 9 : 12,
         stars: weak ? 0.35 : lowPower ? 0.55 : 1,
         sparks: weak ? 64 : lowPower ? 96 : 160,
         // Render at the device's real pixels. A flat cap of 2 left every 3x
@@ -187,15 +286,17 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
         // instead, so a small dense screen gets native density while a 4K
         // desktop doesn't try to render 33M pixels.
         maxDpr: 3,
-        maxPixels: weak ? 0.9e6 : lowPower ? 3.8e6 : 8.3e6,
-        // Floor for the budget above. 2 is what every device already ran at, so
-        // nothing regresses — except weak phones, which are deliberately let
-        // back down to roughly the pixel count they were coping with before.
-        minDpr: weak ? 1.25 : 2,
-        // Bloom is a blur, so it costs nothing visually to run it below the
-        // render resolution — and on phones that headroom is what pays for
-        // the higher pixel ratio above.
-        bloomScale: weak ? 0.45 : lowPower ? 0.6 : 1,
+        maxPixels: weak ? 2.2e6 : lowPower ? 3.6e6 : 6.5e6,
+        // Floor for the budget above, and the reason the desktop figure is
+        // sharp on a 5K panel instead of soft: a floor of 2 outranked the pixel
+        // budget entirely there, so a 2560x1440 window rendered 14.7M pixels
+        // through twelve bloom passes. Only phones, where CSS resolution really
+        // does look bad, still hold a floor above 1.
+        minDpr: weak ? 1.9 : lowPower ? 2 : 1,
+        // Bloom is a wide blur, so it costs nothing visually to run it below the
+        // render resolution — and that headroom is what pays for native pixel
+        // density on the figure itself, which is the part anyone can see.
+        bloomScale: weak ? 0.6 : 0.7,
         // MSAA samples on the post-processing target. EffectComposer ignores
         // the renderer's own `antialias` flag, so this is what actually smooths
         // the tube edges. Nearly all of the benefit is in the first two
@@ -281,16 +382,25 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
       // how much resolution or MSAA it gets, so hold a floor on line weight.
       // Desktops already clear the floor and are left exactly as they were.
       const BASE_TUBE_RADIUS = 0.028;
-      const MIN_TUBE_PX = 1.7;
+      const MIN_TUBE_PX = 2.4;
       const { w: fitW, h: fitH } = viewportSize();
-      const cssPerWorld = fitH / (2 * TAN_HALF_FOV * fitDistance(fitW, fitH));
+      const cssPerWorld = pixelsPerWorld(fitW, fitH);
       const lineScale = Math.min(
-        1.6,
+        2.8,
         Math.max(1, MIN_TUBE_PX / (2 * BASE_TUBE_RADIUS * cssPerWorld))
       );
 
-      const tubes = TUBE_COLORS.map((hex, i) => {
-        const curve = new BraidedLemniscate((i / TUBE_COLORS.length) * Math.PI * 2);
+      // Five strands only read as a braid when the bundle they wind through is
+      // wide enough to hold them apart. On a phone the band is ~9px and five
+      // strands at a legible thickness lay down more ink than fits in it, so
+      // they merge into one shimmering bar; three at full weight read as a
+      // braid. Desktops and tablets are well clear of the threshold and keep
+      // all five exactly as before.
+      const braidBandPx = 2 * SHAPE.braidRadius * cssPerWorld;
+      const palette = braidBandPx >= 12.5 ? TUBE_COLORS : TUBE_COLORS.slice(0, 3);
+
+      const tubes = palette.map((hex, i) => {
+        const curve = new BraidedLemniscate((i / palette.length) * Math.PI * 2);
         const geometry = new THREE.TubeGeometry(
           curve,
           QUALITY.tubular,
@@ -307,9 +417,10 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
           metalness: 0.15,
           roughness: 0.45,
         });
-        group.add(new THREE.Mesh(geometry, material));
+        const mesh = new THREE.Mesh(geometry, material);
+        group.add(mesh);
         disposables.push(geometry, material);
-        return { geometry, material, curve, indexCount: geometry.index!.count };
+        return { mesh, geometry, material, curve, indexCount: geometry.index!.count };
       });
 
       // Comet head
@@ -393,7 +504,8 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
         depthWrite: false,
         transparent: true,
       });
-      group.add(new THREE.Points(sparkGeo, sparkMat));
+      const sparkPoints = new THREE.Points(sparkGeo, sparkMat);
+      group.add(sparkPoints);
       disposables.push(sparkGeo, sparkMat);
 
       let sparkCursor = 0;
@@ -428,15 +540,24 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
       // hero reserves exactly the height the figure actually occupies.
       // ---------------------------------------------------------------
       let baseCameraZ = 14;
-      // Set by the adaptive scaler in the render loop; 1 means "device is
-      // keeping up, render at the ratio the budget above chose".
+      // World-space height of the camera, which is what centres the figure on
+      // the box the hero reserved for it rather than on the middle of a
+      // viewport-sized canvas.
+      let baseCameraY = 0;
+      // Set by the adaptive ladder in the render loop; both default to "device
+      // is keeping up, render at the quality the budget above chose".
       let dprScale = 1;
+      let bloomScale = QUALITY.bloomScale;
+      // The canvas is fixed, so its viewport rect only moves on resize. Reading
+      // it per frame — which is what projectToScreen used to do — forces a
+      // synchronous layout on the main thread during the busiest part of the
+      // whole timeline.
+      let canvasRect = canvas.getBoundingClientRect();
       const resize = () => {
         const { w, h } = viewportSize();
         camera.aspect = w / h;
         baseCameraZ = fitDistance(w, h);
         camera.position.z = baseCameraZ;
-        camera.updateProjectionMatrix();
 
         const dpr = Math.max(
           // Never render below CSS resolution: an upscaled buffer is the exact
@@ -464,18 +585,42 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
         // constructor, so setSize is the only way to actually move the glow off
         // the full-res path.
         bloomPass.setSize(
-          Math.max(64, Math.round(w * dpr * QUALITY.bloomScale)),
-          Math.max(64, Math.round(h * dpr * QUALITY.bloomScale))
+          Math.max(64, Math.round(w * dpr * bloomScale)),
+          Math.max(64, Math.round(h * dpr * bloomScale))
         );
 
-        // Tell the layout how tall the figure renders, so the text never
-        // collides with it on any screen.
-        const visibleH = 2 * TAN_HALF_FOV * baseCameraZ;
-        const px = (SHAPE_H / visibleH) * h;
-        document.documentElement.style.setProperty(
-          '--infinity-h',
-          `${Math.round(px)}px`
-        );
+        canvasRect = canvas.getBoundingClientRect();
+
+        // Republish the reserved box — the layout effect already did this before
+        // first paint, and both sides compute it from the same geometry, so this
+        // only matters after a resize.
+        publishFigureBox(w, h);
+
+        // Then centre the figure on that box. Measuring the anchor is what makes
+        // this exact: the canvas is viewport-height while the hero section is
+        // 100svh, so on a phone their centre lines sit tens of pixels apart, and
+        // splitting the difference in either direction is what put the text and
+        // the figure in each other's way.
+        const anchor = anchorRef?.current;
+        const perWorld = h / (2 * TAN_HALF_FOV * baseCameraZ);
+        if (anchor && perWorld > 0) {
+          const box = anchor.getBoundingClientRect();
+          // Measured against the hero section rather than the viewport: the
+          // canvas is fixed and the anchor is not, so at any scroll position but
+          // zero their viewport rects differ by the scroll offset — and resize
+          // does fire mid-page, every time a mobile URL bar collapses. The
+          // section and the anchor scroll together, so their difference is the
+          // resting offset at any scroll position, which is what the scroll
+          // parallax in the render loop then displaces.
+          const host = canvas.parentElement;
+          const hostTop = host ? host.getBoundingClientRect().top : canvasRect.top;
+          const shiftPx = box.top - hostTop + box.height / 2 - h / 2;
+          baseCameraY = shiftPx / perWorld;
+        } else {
+          baseCameraY = 0;
+        }
+        camera.position.y = baseCameraY;
+        camera.updateProjectionMatrix();
       };
       resize();
 
@@ -501,11 +646,24 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
         orbitLights.forEach(({ light }, i) =>
           light.color.setHSL((baseHue + 0.5 + i * 0.12) % 1, 0.85, 0.6)
         );
-        bloomPass.strength = 0.9;
+        bloomBase = 0.9;
+      };
+      // Under reduced motion the scene is drawn exactly once, so anything that
+      // resizes the drawing buffer has to redraw it or the canvas is left blank.
+      const onResize = () => {
+        resize();
+        if (reducedMotion) composer.render();
       };
       window.addEventListener('pointermove', onPointerMove, { passive: true });
       window.addEventListener('click', onClick);
-      window.addEventListener('resize', resize);
+      window.addEventListener('resize', onResize);
+
+      // Syncopate arrives from Google Fonts after first paint and changes the
+      // height of the text above the figure, which moves the box the camera is
+      // centred on. Re-measure once it lands.
+      document.fonts?.ready.then(() => {
+        if (!disposed) onResize();
+      });
 
       // Ctrl+/- zoom and moving the window between displays change
       // devicePixelRatio, and neither reliably fires `resize`. Without this the
@@ -514,7 +672,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
       // one-shot, so the query is re-armed at the new ratio every time.
       let dprQuery: MediaQueryList | undefined;
       const onDprChange = () => {
-        resize();
+        onResize();
         watchDpr();
       };
       const watchDpr = () => {
@@ -526,19 +684,14 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
       };
       watchDpr();
 
-      // Pause when the hero is off-screen or the tab is hidden.
+      // Pause while the tab is hidden. There is deliberately no
+      // IntersectionObserver here: this canvas is fixed and fills the viewport,
+      // so it intersects on every section of the page and an observer on it can
+      // only ever report "visible" — which is how the full-quality loop, bloom
+      // included, ended up running behind Works, Profile and the footer for as
+      // long as the page was open. Scroll position is what actually says whether
+      // the figure is on screen, and the render loop reads it directly.
       let visible = true;
-      const observer = new IntersectionObserver(
-        ([entry]) => {
-          visible = entry.isIntersecting;
-          if (visible && !reducedMotion) {
-            clock.getDelta(); // drop accumulated time so nothing jumps
-            loop();
-          }
-        },
-        { threshold: 0 }
-      );
-      observer.observe(canvas);
       const onVisibility = () => {
         if (document.hidden) {
           visible = false;
@@ -562,6 +715,12 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
       let dustTimer = 0;
       let frame = 0;
       let slowTime = 0;
+      let degraded = 0;
+      // The timeline writes here rather than to the pass, so the scroll-out fade
+      // can scale it without either of them overwriting the other.
+      let bloomBase = 0.5;
+      let backdrop = false;
+      let throttleAcc = 0;
       const clock = new THREE.Clock();
       const headPos = new THREE.Vector3();
       const headTangent = new THREE.Vector3();
@@ -571,19 +730,52 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
 
       const projectToScreen = (v: InstanceType<typeof THREE.Vector3>) => {
         cometWorld.copy(v).project(camera);
-        const rect = canvas.getBoundingClientRect();
         return {
-          x: rect.left + ((cometWorld.x + 1) / 2) * rect.width,
-          y: rect.top + ((1 - cometWorld.y) / 2) * rect.height,
+          x: canvasRect.left + ((cometWorld.x + 1) / 2) * canvasRect.width,
+          y: canvasRect.top + ((1 - cometWorld.y) / 2) * canvasRect.height,
         };
       };
 
+      /**
+       * Everything that only exists to serve the figure is switched off once the
+       * figure is gone, leaving the starfield to carry the rest of the page. The
+       * bloom pass alone is a dozen fullscreen draws per frame; on a phone that
+       * was the entire cost of scrolling through the site.
+       */
+      const setBackdrop = (on: boolean) => {
+        backdrop = on;
+        tubes.forEach((t) => (t.mesh.visible = !on));
+        sparkPoints.visible = !on;
+      };
+
+      let onStaticScroll: (() => void) | undefined;
       if (reducedMotion) {
         tubes.forEach((t) => t.geometry.setDrawRange(0, t.indexCount));
         comet.visible = false;
         cometLight.intensity = 0;
         phase = 'idle';
-        composer.render();
+
+        // With no render loop running, the figure has to be carried off with the
+        // page by hand. Otherwise the single rendered frame stays pinned to the
+        // middle of a fixed, full-viewport canvas and hangs over Works and
+        // Profile for the rest of the session. Redraws only while scrolling,
+        // one per frame at most.
+        let queued = false;
+        const drawStatic = () => {
+          queued = false;
+          const past = window.scrollY / Math.max(1, window.innerHeight);
+          setBackdrop(past > BACKDROP_IN);
+          group.position.y = past * 2 * TAN_HALF_FOV * baseCameraZ;
+          composer.render();
+        };
+        onStaticScroll = () => {
+          if (queued) return;
+          queued = true;
+          requestAnimationFrame(drawStatic);
+        };
+        window.addEventListener('scroll', onStaticScroll, { passive: true });
+
+        drawStatic();
         setStatus('ready');
       }
 
@@ -591,7 +783,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
         phase = 'settle';
         settleStart = elapsed;
         cometSpeed = TERMINAL_SPEED;
-        bloomPass.strength = 1.2;
+        bloomBase = 1.2;
         // Circuit closes: the charge distributes around the ring as dust.
         for (let i = 0; i < 30; i++) {
           tubes[0].curve.getPoint(i / 30, dustOrigin);
@@ -608,25 +800,45 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
       };
 
       const render = () => {
+        // Time is accumulated rather than read per frame so that skipping a
+        // frame in backdrop mode still hands the full elapsed interval to the
+        // animation, and nothing runs in slow motion.
+        throttleAcc += clock.getDelta();
+        // 32fps is indistinguishable for a starfield turning at 0.004 rad/s, and
+        // halving the frame count halves what scrolling the page costs.
+        if (backdrop && throttleAcc < 0.031) return;
         // The clamped dt drives the animation so a long stall can't teleport
-        // the comet; the raw value is what the adaptive scaler has to judge on,
+        // the comet; the raw value is what the adaptive ladder has to judge on,
         // since the clamp would report a 5fps device as if it were running 20.
-        const rawDt = clock.getDelta();
+        const rawDt = throttleAcc;
+        throttleAcc = 0;
         const dt = Math.min(rawDt, 0.05);
         const elapsed = clock.elapsedTime;
 
-        // Give back resolution if the device can't sustain the frame rate.
-        // Only once idle: ignition is deliberately the heaviest stretch of the
-        // timeline, so judging a device on it down-scales hardware that handles
-        // the steady state perfectly well. Reaching idle also serves as the
-        // grace period for shader compilation and first GPU uploads. resize()
-        // only touches the camera and buffer sizes, never the timeline or draw
-        // ranges, so it is safe to call from here.
-        if (phase === 'idle' && dprScale > ADAPT.minScale) {
+        // How far the hero has scrolled away, in viewport heights.
+        const past = window.scrollY / Math.max(1, window.innerHeight);
+        if (past > BACKDROP_IN) {
+          if (!backdrop) setBackdrop(true);
+        } else if (past < BACKDROP_OUT) {
+          if (backdrop) setBackdrop(false);
+        }
+
+        // Give back quality if the device can't sustain the frame rate. Only
+        // once idle, and never in backdrop mode, where frames are deliberately
+        // throttled and every one of them would read as a device too slow to
+        // keep up: ignition is the heaviest stretch of the timeline by design,
+        // so judging a device on it down-scales hardware that handles the steady
+        // state perfectly well. Reaching idle also serves as the grace period for
+        // shader compilation and first GPU uploads. resize() only touches camera
+        // and buffer sizes, never the timeline or draw ranges, so it is safe to
+        // call from here.
+        if (phase === 'idle' && !backdrop && degraded < ADAPT.steps.length) {
           if (rawDt > ADAPT.slowFrameSec && rawDt < ADAPT.stallSec) {
             slowTime += rawDt;
             if (slowTime >= ADAPT.slowSecsBeforeDrop) {
-              dprScale = Math.max(ADAPT.minScale, dprScale - ADAPT.step);
+              const step = ADAPT.steps[degraded++];
+              bloomScale = QUALITY.bloomScale * step.bloom;
+              dprScale = step.dpr;
               slowTime = 0;
               resize();
             }
@@ -692,7 +904,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
         if (phase === 'settle') {
           const t = clamp01((elapsed - settleStart) / TIMING.settleDuration);
           const fade = 1 - easeInOutCubic(t);
-          bloomPass.strength = 1.2 - (1.2 - 0.5) * easeInOutCubic(t);
+          bloomBase = 1.2 - (1.2 - 0.5) * easeInOutCubic(t);
 
           cometProgress += cometSpeed * dt;
           tubes[0].curve.getPoint(wrap01(cometProgress), headPos);
@@ -738,22 +950,26 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
           const td = elapsed - idleStart;
           const ramp = easeInOutCubic(clamp01(td / 4));
 
+          // Vertical wander and roll are held to what MOTION_ENVELOPE reserves.
+          // They are the two components that move the figure's edge towards the
+          // text, and reserving their full former reach would have cost the
+          // desktop composition ~50px of clearance above and below the loop.
           group.position.x = Math.sin(td * 0.061) * 0.35 * ramp;
           group.position.y =
-            (Math.sin(td * 0.047) * 0.28 + Math.sin(td * 0.113) * 0.09) * ramp;
+            (Math.sin(td * 0.047) * 0.2 + Math.sin(td * 0.113) * 0.07) * ramp;
           group.position.z = Math.sin(td * 0.039) * 0.3 * ramp;
           group.rotation.y =
             (Math.sin(td * 0.083) * 0.28 + Math.sin(td * 0.031) * 0.1) * ramp;
           group.rotation.x = Math.sin(td * 0.067) * 0.11 * ramp;
-          group.rotation.z = Math.sin(td * 0.053) * 0.05 * ramp;
+          group.rotation.z = Math.sin(td * 0.053) * 0.04 * ramp;
           camera.position.z = baseCameraZ + Math.sin(td * 0.037) * 0.45 * ramp;
 
           const breatheTarget = 0.68 + Math.sin(td * 0.8) * 0.08;
           const breathe = 0.75 + (breatheTarget - 0.75) * ramp;
           tubes.forEach((tube) => (tube.material.emissiveIntensity = breathe));
 
-          if (bloomPass.strength > 0.5) {
-            bloomPass.strength = Math.max(0.5, bloomPass.strength - dt * 1.5);
+          if (bloomBase > 0.5) {
+            bloomBase = Math.max(0.5, bloomBase - dt * 1.5);
           }
 
           dustTimer += dt;
@@ -784,8 +1000,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
 
         // Parallax scroll: offset 3D infinity figure upwards in world space as user scrolls down
         const visibleH = 2 * TAN_HALF_FOV * baseCameraZ;
-        const scrollWorldY = (window.scrollY / window.innerHeight) * visibleH;
-        group.position.y += scrollWorldY;
+        group.position.y += past * visibleH;
 
         starField.rotation.y += dt * 0.004;
         starField.rotation.z += dt * 0.0012;
@@ -804,17 +1019,21 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
           geo.attributes.color.needsUpdate = true;
         }
 
-        orbitLights.forEach((o) => {
-          const a = o.angle + elapsed * o.speed;
-          o.light.position.set(
-            Math.cos(a) * o.radius,
-            Math.sin(a * 1.3) * 3,
-            Math.sin(a) * 2 + 1.5
-          );
-        });
+        // The orbit lights and the sparks exist only to light and dress the
+        // tubes, so neither is worth a frame's work once those are hidden.
+        if (!backdrop) {
+          orbitLights.forEach((o) => {
+            const a = o.angle + elapsed * o.speed;
+            o.light.position.set(
+              Math.cos(a) * o.radius,
+              Math.sin(a * 1.3) * 3,
+              Math.sin(a) * 2 + 1.5
+            );
+          });
+        }
 
         let alive = false;
-        for (let i = 0; i < SPARKS; i++) {
+        for (let i = 0; backdrop === false && i < SPARKS; i++) {
           if (sparkLife[i] <= 0) continue;
           alive = true;
           sparkLife[i] -= dt * sparkDecay[i];
@@ -834,6 +1053,14 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
           sparkGeo.attributes.color.needsUpdate = true;
         }
 
+        // Ease the glow out across the same band the backdrop switch uses, so
+        // dropping the pass reads as the figure leaving rather than as the
+        // starfield changing brightness in one step.
+        const bloomFade =
+          1 - clamp01((past - BACKDROP_OUT) / (BACKDROP_IN - BACKDROP_OUT));
+        bloomPass.enabled = bloomFade > 0.02;
+        bloomPass.strength = bloomBase * bloomFade;
+
         frame++;
         composer.render();
       };
@@ -852,11 +1079,11 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange }) => {
 
       teardown = () => {
         cancelAnimationFrame(rafId);
-        observer.disconnect();
         document.removeEventListener('visibilitychange', onVisibility);
         window.removeEventListener('pointermove', onPointerMove);
-        window.removeEventListener('resize', resize);
+        window.removeEventListener('resize', onResize);
         window.removeEventListener('click', onClick);
+        if (onStaticScroll) window.removeEventListener('scroll', onStaticScroll);
         dprQuery?.removeEventListener('change', onDprChange);
         heroWarp.strength = 0;
         disposables.forEach((d) => d.dispose());

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Github, Linkedin, Mail, ExternalLink, ArrowRight, ArrowDown, Briefcase, User, MessageSquare } from 'lucide-react';
-import TubesInfinity, { heroWarp } from './TubesInfinity';
+import TubesInfinity, { heroWarp, type HeroStatus } from './TubesInfinity';
 
 // --- Types ---
 interface Project {
@@ -320,59 +320,60 @@ const InfinitySymbol: React.FC<{ className?: string }> = ({ className }) => (
 );
 
 /**
- * The 3D hero measures how tall the infinity actually renders and publishes it
- * as --infinity-h. The two text blocks are anchored to the section's centre
- * line and offset by half that height, so the composition holds on every
- * screen instead of relying on fixed vh guesses. The fallback value matches
- * the SVG's rendered height (it is 2:1, capped at 420px wide).
+ * The hero is one centred column: heading, a spacer that reserves exactly the
+ * box the figure can occupy, then the rest of the text. The 3D scene publishes
+ * that box as --infinity-h (its static extents plus the reach of the idle
+ * drift) and centres its camera on the spacer, so the figure and the text agree
+ * on where the middle is by construction.
+ *
+ * Both text blocks used to be pinned to the section's own centre line with a
+ * fixed clearance instead. That assumed three things that were not true: that
+ * the reserved height covered the drift (it was the static height, so the loop
+ * swung ~13px past it on a phone and ~50px on a desktop, into an 8px gap), that
+ * the canvas and the section share a centre line (the canvas is viewport-sized
+ * and the section is 100svh, which differ by the mobile URL bar), and that the
+ * measurement arrives before first paint (it came from inside the Three.js
+ * import, so the text jumped when it landed).
  */
-const FIGURE_HALF = 'var(--infinity-h, 210px) / 2';
-const ABOVE_FIGURE = `calc(50% + ${FIGURE_HALF} + 8px)`;
-// The lower block sits further from the figure than the upper "TO", so
-// "AND BEYOND" gets room to breathe beneath the loop.
-const BELOW_FIGURE = `calc(50% + ${FIGURE_HALF} + 34px)`;
-
-const MainHero: React.FC = () => {
-  const [heroStatus, setHeroStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
+const MainHero: React.FC<{
+  status: HeroStatus;
+  onStatusChange: (status: HeroStatus) => void;
+}> = ({ status, onStatusChange }) => {
+  const figureRef = useRef<HTMLDivElement>(null);
 
   return (
     <section
       className="relative min-h-screen z-10 overflow-hidden select-none cursor-default"
       style={{ minHeight: '100svh' }}
     >
-      {/* Braided 3D infinity. Transparent canvas, so ParticleGrid shows through. */}
-      <TubesInfinity onStatusChange={setHeroStatus} />
+      {/* Braided 3D infinity — a transparent, fixed, full-viewport canvas. */}
+      <TubesInfinity anchorRef={figureRef} onStatusChange={onStatusChange} />
 
-      {/* Fallback for no WebGL / slow chunk — the original SVG, unchanged */}
-      {heroStatus === 'failed' && (
-        <div className="absolute inset-0 flex items-center justify-center px-6 pointer-events-none">
-          <div className="relative w-full flex justify-center animate-float">
-            <InfinitySymbol />
-            <div className="absolute top-1/2 left-1/2 w-3/4 h-32 bg-white/5 blur-[80px] rounded-full animate-pulse-glow" />
-          </div>
-        </div>
-      )}
-
-      {/* Upper text — sits closely above the figure */}
-      <div
-        className="absolute inset-x-0 top-0 flex flex-col items-center justify-end px-6 pointer-events-none"
-        style={{ bottom: ABOVE_FIGURE }}
-      >
+      <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center pointer-events-none">
         <h2
-          className="text-[clamp(0.9rem,2.1vw,1.65rem)] font-normal tracking-[0.5em] text-neutral-200 uppercase animate-fade-in-up reveal-1 mb-0 font-['Syncopate'] drop-shadow-[0_0_16px_rgba(125,211,252,0.18)]"
+          className="text-[clamp(0.9rem,2.1vw,1.65rem)] font-normal tracking-[0.5em] text-neutral-200 uppercase animate-fade-in-up reveal-1 mb-[clamp(8px,1.2vh,18px)] font-['Syncopate'] drop-shadow-[0_0_16px_rgba(125,211,252,0.18)]"
           style={{ textIndent: '0.5em' }}
         >
           To
         </h2>
-      </div>
 
-      {/* Lower text — sits closely below the figure */}
-      <div
-        className="absolute inset-x-0 bottom-0 flex flex-col items-center justify-start px-6 text-center pointer-events-none"
-        style={{ top: BELOW_FIGURE }}
-      >
+        {/* The figure's reserved space. The 3D scene centres itself on this box;
+            the SVG fallback fills it and sizes it itself. */}
+        <div
+          ref={figureRef}
+          className="w-full flex items-center justify-center mb-[clamp(12px,1.8vh,26px)]"
+          style={status === 'failed' ? undefined : { height: 'var(--infinity-h, 260px)' }}
+        >
+          {status === 'failed' && (
+            <div className="relative w-full flex justify-center animate-float">
+              <InfinitySymbol />
+              <div className="absolute top-1/2 left-1/2 w-3/4 h-32 bg-white/5 blur-[80px] rounded-full animate-pulse-glow" />
+            </div>
+          )}
+        </div>
+
         <h1
-          className="text-[clamp(1.5rem,6vw,4rem)] font-normal tracking-[0.35em] text-transparent bg-clip-text bg-gradient-to-r from-[#7dd3fc]/70 via-white to-[#b39dff]/70 animate-shimmer font-['Syncopate'] uppercase animate-fade-in-up reveal-2 mt-0 leading-none drop-shadow-[0_0_22px_rgba(179,157,255,0.16)]"
+          className="text-[clamp(1.5rem,6vw,4rem)] font-normal tracking-[0.35em] text-transparent bg-clip-text bg-gradient-to-r from-[#7dd3fc]/70 via-white to-[#b39dff]/70 animate-shimmer font-['Syncopate'] uppercase animate-fade-in-up reveal-2 leading-none drop-shadow-[0_0_22px_rgba(179,157,255,0.16)]"
           style={{ textIndent: '0.35em' }}
         >
           And Beyond
@@ -492,17 +493,24 @@ const Footer: React.FC = () => {
 };
 
 export default function App() {
+  const [heroStatus, setHeroStatus] = useState<HeroStatus>('loading');
+
   return (
     <div className="relative bg-black min-h-screen text-slate-200 selection:bg-white selection:text-black">
-      {/* Background Interactive Layer */}
-      <ParticleGrid />
-      
+      {/* The dot grid is the background of last resort. The 3D starfield behind
+          every section replaced it, but this canvas was still mounted
+          unconditionally underneath — visible through the transparent hero
+          canvas the whole time, and on its own for the second the 3D scene
+          spends fading in, which is where the grid appeared to "come back" on
+          load. It is now only drawn when there is no 3D scene to replace it. */}
+      {heroStatus === 'failed' && <ParticleGrid />}
+
       {/* Navigation */}
       <Header />
-      
+
       {/* Content */}
       <main>
-        <MainHero />
+        <MainHero status={heroStatus} onStatusChange={setHeroStatus} />
         <ProjectsSection />
         <AboutSection />
       </main>
