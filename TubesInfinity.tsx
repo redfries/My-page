@@ -39,15 +39,29 @@ const deviceTier = () => {
 
 /**
  * Geometry of the lemniscate, shared by the camera fit, the curve and the
- * hero's layout. The braid is wound wider on phones: the figure is fitted to
- * roughly a third of the width it gets on a desktop, so at the desktop radius
- * every strand lands inside the same ~5px bundle and the braid can't read as
- * anything but a fuzzy line.
+ * hero's layout.
+ *
+ * `braidRadius` is the band the strands corkscrew through. Overlapping strands
+ * are not the problem — the reference this is modelled on has its tubes on top
+ * of each other almost the whole way and reads as one clean ribbon of light.
+ * Overlapping while *thin and dim* is the problem: that is what shimmers. So the
+ * band stays tight enough to keep the mark's shape and the strands are made
+ * thick and bright enough to merge into a rope instead of interfering. Widening
+ * this to 0.33 did stop the merging, and cost the figure its silhouette — the
+ * strands splayed ~40 px apart at the crossing and it stopped reading as an
+ * infinity. Phones get a wider band: the figure is fitted to about a third of
+ * the width it gets on a desktop, so the same world radius buys a third of the
+ * pixels.
+ *
+ * These are world units and deliberately not derived from the viewport — the
+ * hero's layout calls this before Three.js has loaded, so it must stay pure.
+ * Strand count and thickness are solved from the resulting band in pixels, down
+ * where the tubes are actually built.
  */
 function buildShape() {
   const scale = 5.9;
   const yStretch = 0.82;
-  const braidRadius = deviceTier().lowPower ? 0.19 : 0.13;
+  const braidRadius = deviceTier().lowPower ? 0.3 : 0.22;
   return {
     scale,
     yStretch,
@@ -132,16 +146,20 @@ const ADAPT = {
   // 1.3s at 30fps but 8s at 5fps, which is exactly backwards.
   slowSecsBeforeDrop: 1.2,
   /**
-   * Ladder, applied in order. Resolution goes last and never far: a soft,
-   * upscaled figure is the most conspicuous way this scene can fail, whereas
-   * bloom is a wide blur that can lose half its resolution without anyone
-   * being able to point at what changed.
+   * Ladder, applied in order. Bloom resolution goes first — it is a wide blur
+   * and can lose half its resolution without anyone being able to point at what
+   * changed. What the last two rungs give back is the *supersample*, not real
+   * pixels: `QUALITY.superSample` renders desktops at 2x and downscales, so
+   * scaling that by 0.62 still leaves ~1.24x, above native. The old ladder
+   * bottomed out at 0.72 of a ratio that was already capped at the device's own,
+   * which put the buffer below the screen and produced exactly the soft, upscaled
+   * figure the whole path exists to avoid.
    */
   steps: [
     { bloom: 0.72, dpr: 1 },
     { bloom: 0.5, dpr: 1 },
-    { bloom: 0.5, dpr: 0.85 },
-    { bloom: 0.5, dpr: 0.72 },
+    { bloom: 0.5, dpr: 0.8 },
+    { bloom: 0.5, dpr: 0.62 },
   ],
 };
 
@@ -154,8 +172,48 @@ const ADAPT = {
 const BACKDROP_IN = 1;
 const BACKDROP_OUT = 0.85;
 
-const TUBE_COLORS = ['#ffffff', '#9ae6ff', '#b39dff', '#7dd3fc', '#e2e8f0'];
+/**
+ * Cycled across the filaments. Whites are interleaved deliberately: under linear
+ * response a white strand's core clips flat and the saturated ones bloom a
+ * coloured halo around it, which is the two-tone read — white-hot centre,
+ * coloured light — that the reference gets from its own colour ramp. An all-pale
+ * set glows evenly and reads washed out; these stay inside the site's cold
+ * cyan/violet family but carry enough saturation for the halo to have a colour.
+ */
+const TUBE_COLORS = [
+  '#ffffff',
+  '#7dd3fc',
+  '#c4b5fd',
+  '#ffffff',
+  '#38bdf8',
+  '#a78bfa',
+  '#e0f2fe',
+  '#818cf8',
+  '#ffffff',
+  '#22d3ee',
+  '#b39dff',
+  '#93c5fd',
+];
 const LIGHT_COLORS = ['#7dd3fc', '#a78bfa', '#f0abfc', '#60aed5'];
+
+/**
+ * Resting brightness of a filament's own glow. Set near 1 so a strand's core
+ * clips flat under linear response — that hard white centre with a coloured
+ * edge is what makes a thin strand read as light rather than as a thin object.
+ * A filament two pixels across cannot afford to be a mid-tone: at that width a
+ * soft grey gradient is all you would see, which is what "low res" looked like.
+ */
+const EMISSIVE_BASE = 0.92;
+/**
+ * Point lights add the highlight that makes a strand read as round; the emissive
+ * above carries the body. Tuned against a linear response, where a specular peak
+ * only has to clear 1.0 to clip white — the 110 that a filmic curve needed would
+ * blow out most of the figure here. `distance: 0` is true inverse-square; the
+ * old cutoff at 18 world units clipped the falloff partway across a figure that
+ * spans ~13, putting a soft edge on the lighting as the lights orbited.
+ */
+const ORBIT_LIGHT_INTENSITY = 40;
+const COMET_LIGHT_INTENSITY = 30;
 
 const easeInOutCubic = (t: number) =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -276,17 +334,37 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
       const { lowPower, weak } = deviceTier();
 
       const QUALITY = {
-        tubular: weak ? 420 : lowPower ? 560 : 840,
-        radial: weak ? 8 : lowPower ? 9 : 12,
+        // Filaments in the bundle. The reference runs 16; the count is what
+        // makes it read as light rather than as geometry, so this is the lever
+        // that matters most and the tessellation below pays for it.
+        strands: weak ? 5 : lowPower ? 7 : 12,
+        // How thin the lightest filament may get, as a fraction of the heaviest.
+        // A ~3:1 spread mirrors the reference's 0.005-to-0.05 radius range.
+        // Phones hold a higher floor: their band is a third of the width, so the
+        // same fraction there is a sub-pixel line.
+        weightFloor: lowPower ? 0.55 : 0.32,
+        // Lower than it was, and affordable to be: these strands are 2-7 px, not
+        // 10, so the segments are short on screen and the cross-section barely
+        // subtends a pixel. 12 x 600 x 10 is ~144k triangles, against the ~101k
+        // that five fat strands cost at 840 x 12.
+        tubular: weak ? 300 : lowPower ? 420 : 600,
+        radial: weak ? 6 : lowPower ? 8 : 10,
         stars: weak ? 0.35 : lowPower ? 0.55 : 1,
         sparks: weak ? 64 : lowPower ? 96 : 160,
-        // Render at the device's real pixels. A flat cap of 2 left every 3x
-        // phone — and any browser zoom past 200% — displaying an upscaled
-        // buffer, which is what read as "240p". Total pixels are budgeted
-        // instead, so a small dense screen gets native density while a 4K
-        // desktop doesn't try to render 33M pixels.
+        // Render *above* the device's own pixels on a desktop and let the
+        // display downscale. Everything before this capped at devicePixelRatio,
+        // so an ordinary 1x monitor drew the figure 1:1 with nothing but MSAA to
+        // smooth it — and a bright line a few pixels wide stair-steps at 1:1 no
+        // matter how many samples it gets. The reference this scene is modelled
+        // on pins its ratio at 2 on every device; that supersample is most of
+        // why its tubes look clean. Phones already carry 2-3x physical pixels,
+        // so they get none of it and spend the budget on the pixels they have.
+        superSample: lowPower ? 1 : 2,
+        // Total pixels are budgeted so a small dense screen gets native density
+        // while a 4K desktop doesn't try to render 33M pixels. 8.3e6 is what a
+        // 1920x1080 window needs to reach the full 2x supersample.
         maxDpr: 3,
-        maxPixels: weak ? 2.2e6 : lowPower ? 3.6e6 : 6.5e6,
+        maxPixels: weak ? 2.2e6 : lowPower ? 3.6e6 : 8.3e6,
         // Floor for the budget above, and the reason the desktop figure is
         // sharp on a 5K panel instead of soft: a floor of 2 outranked the pixel
         // budget entirely there, so a 2560x1440 window rendered 14.7M pixels
@@ -294,8 +372,12 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
         // does look bad, still hold a floor above 1.
         minDpr: weak ? 1.9 : lowPower ? 2 : 1,
         // Bloom is a wide blur, so it costs nothing visually to run it below the
-        // render resolution — and that headroom is what pays for native pixel
-        // density on the figure itself, which is the part anyone can see.
+        // render resolution — and that headroom is what pays for the supersample
+        // on the figure itself, which is the part anyone can see. Desktops trim
+        // furthest because they gained the most render resolution: 0.55 of a 2x
+        // buffer still puts a strand across ~11 px of the bloom target, against
+        // ~3 px when 0.7 was applied to a 1x one. That ratio is what decides
+        // whether the glow reads as a soft wrap or as a blocky fringe.
         bloomScale: weak ? 0.6 : 0.7,
         // MSAA samples on the post-processing target. EffectComposer ignores
         // the renderer's own `antialias` flag, so this is what actually smooths
@@ -324,8 +406,15 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
         powerPreference: 'high-performance',
       });
       renderer.setClearAlpha(0);
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.9;
+      // Linear, i.e. scale and clip — not a filmic curve. ACES rolls everything
+      // above ~0.8 into a long soft shoulder and desaturates it on the way, which
+      // is the correct answer for photographic content and the wrong one for
+      // neon: it turns the hard bright edge of a glowing tube into a slow grey
+      // gradient, and that gradient is what reads as blur. The reference sets no
+      // tone mapping at all, so its cores clip flat at white with saturated
+      // fringes. Exposure is the knob for how much of the tube blows out.
+      renderer.toneMapping = THREE.LinearToneMapping;
+      renderer.toneMappingExposure = 1.0;
 
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 220);
@@ -338,11 +427,18 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
       });
       const composer = new EffectComposer(renderer, composerTarget);
       composer.addPass(new RenderPass(scene, camera));
+      // The threshold is measured in luminance, and this palette is blue-heavy —
+      // blue carries 7% of luminance, so #818cf8 at full emissive still only
+      // reads 0.46 against white's 1.10. The cut has to clear the dimmest
+      // filament or the violets and indigos silently stop glowing while the
+      // whites bloom, which reads as an inconsistent, patchy mark. Radius stays
+      // tight; strands this thin are a small source, so a wide spread turns into
+      // the frame-wide haze the fat-strand version had.
       const bloomPass = new UnrealBloomPass(
         new THREE.Vector2(256, 256),
         0.5,
-        0.28,
-        0.55
+        0.3,
+        0.42
       );
       composer.addPass(bloomPass);
       composer.addPass(new OutputPass());
@@ -355,8 +451,23 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
       // ---------------------------------------------------------------
       // Braided lemniscate tubes
       // ---------------------------------------------------------------
+      /**
+       * One filament of the bundle. Each gets its own distance from the spine
+       * and its own number of turns per loop, which is what stops the bundle
+       * from being a hollow cylinder of parallel strands: at a shared radius and
+       * a shared winding rate they can never cross, so the whole thing reads as
+       * one tube with grooves rather than as a bundle of separate filaments.
+       *
+       * `windings` must stay a whole number. `a` has to come back to its
+       * starting angle at u = 2*PI or the strand does not close, and the seam
+       * shows as a kink at the right-hand crossing.
+       */
       class BraidedLemniscate extends THREE.Curve<InstanceType<typeof THREE.Vector3>> {
-        constructor(private phase: number) {
+        constructor(
+          private phase: number,
+          private braid: number,
+          private windings: number
+        ) {
           super();
         }
         getPoint(t: number, target = new THREE.Vector3()) {
@@ -367,55 +478,90 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
           const x = (SHAPE.scale * c) / d;
           const y = ((SHAPE.scale * s * c) / d) * SHAPE.yStretch;
           const z = Math.sin(u * 2) * SHAPE.depth;
-          const a = u * 2 + this.phase;
+          const a = u * this.windings + this.phase;
           return target.set(
-            x + Math.cos(a) * SHAPE.braidRadius,
-            y + Math.sin(a) * SHAPE.braidRadius,
-            z + Math.sin(a + u) * SHAPE.braidRadius * 0.5
+            x + Math.cos(a) * this.braid,
+            y + Math.sin(a) * this.braid,
+            z + Math.sin(a + u) * this.braid * 0.5
           );
         }
       }
 
-      // The figure is fitted to a much smaller box on a phone than on a
-      // desktop, so the same world-space radius lands at ~4 CSS px there and
-      // barely 1 px here. A bright line thinner than a pixel aliases no matter
-      // how much resolution or MSAA it gets, so hold a floor on line weight.
-      // Desktops already clear the floor and are left exactly as they were.
-      const BASE_TUBE_RADIUS = 0.028;
-      const MIN_TUBE_PX = 2.4;
+      // Line weight is stated in the pixels a strand should measure on screen
+      // and solved back into world units — not fixed as a world constant with a
+      // floor bolted on for phones. That inversion is the whole point. The
+      // figure was deliberately shrunk 30% over three commits, a world-constant
+      // radius shrank silently along with it, and the floor only ever applied
+      // below ~2.4 px, so desktops sailed past it at 4.15 px and were never
+      // touched. Stated this way the weight survives any future change to
+      // `fill`, and it is the band that runs out first, not the ink.
+      // Diameter of the *heaviest* strand as a fraction of the band. The band is
+      // itself a fixed share of the figure, so tying weight to it keeps the mark
+      // proportional — a 1440p window draws the same bundle as a 1080p one, just
+      // larger. A flat pixel target does not: it caps weight while the band keeps
+      // growing, and the strands come apart into separate rings on big displays.
+      const TUBE_TO_BAND = 0.3;
+      // Clamps for the extremes only.
+      const MIN_TUBE_PX = 4.5;
+      const MAX_TUBE_PX = 13;
+
       const { w: fitW, h: fitH } = viewportSize();
       const cssPerWorld = pixelsPerWorld(fitW, fitH);
-      const lineScale = Math.min(
-        2.8,
-        Math.max(1, MIN_TUBE_PX / (2 * BASE_TUBE_RADIUS * cssPerWorld))
+      const bandPx = 2 * SHAPE.braidRadius * cssPerWorld;
+      const strands = QUALITY.strands;
+      const tubePx = Math.min(
+        MAX_TUBE_PX,
+        Math.max(MIN_TUBE_PX, bandPx * TUBE_TO_BAND)
       );
+      const tubeRadius = tubePx / 2 / cssPerWorld;
 
-      // Five strands only read as a braid when the bundle they wind through is
-      // wide enough to hold them apart. On a phone the band is ~9px and five
-      // strands at a legible thickness lay down more ink than fits in it, so
-      // they merge into one shimmering bar; three at full weight read as a
-      // braid. Desktops and tablets are well clear of the threshold and keep
-      // all five exactly as before.
-      const braidBandPx = 2 * SHAPE.braidRadius * cssPerWorld;
-      const palette = braidBandPx >= 12.5 ? TUBE_COLORS : TUBE_COLORS.slice(0, 3);
+      /**
+       * Low-discrepancy sequence on the golden ratio: fills [0, 1) evenly at any
+       * length without the clumps and gaps random sampling leaves, and being
+       * deterministic it draws the identical mark on every load. Random weights
+       * would let one page view get four hairlines in a row.
+       */
+      const golden = (i: number) => (i * 0.618033988749895) % 1;
 
-      const tubes = palette.map((hex, i) => {
-        const curve = new BraidedLemniscate((i / palette.length) * Math.PI * 2);
+      const tubes = Array.from({ length: strands }, (_, i) => {
+        const g = golden(i);
+        // Weight spread over roughly 3:1, the same idea as the reference's
+        // 0.005-to-0.05 radius range. A bundle of identical strands reads as a
+        // machined part; the mixture of hairlines and heavier strands is what
+        // makes it read as light.
+        const weight = QUALITY.weightFloor + (1 - QUALITY.weightFloor) * g;
+        // Distance from the spine varies too, so the bundle is filled rather
+        // than a hollow ring of filaments.
+        const braid = SHAPE.braidRadius * (0.45 + 0.55 * golden(i + 3));
+        const curve = new BraidedLemniscate(
+          (i / strands) * Math.PI * 2 + g * 0.9,
+          braid,
+          1 + (i % 3)
+        );
+        const hex = TUBE_COLORS[i % TUBE_COLORS.length];
         const geometry = new THREE.TubeGeometry(
           curve,
           QUALITY.tubular,
-          BASE_TUBE_RADIUS * lineScale * (i === 0 ? 1.25 : 1),
+          tubeRadius * weight,
           QUALITY.radial,
           true
         );
         geometry.setDrawRange(0, 0);
         const color = new THREE.Color(hex);
+        // A solid, saturated tube with a hot streak down it — the reference's
+        // look — rather than either a flat emissive ribbon (what this was) or a
+        // dark mirror (what pure metal gives you with no environment map). The
+        // emissive carries the coloured body; a moderate metalness at moderate
+        // roughness spreads the specular into a streak wide enough to see rather
+        // than the razor glint that 0.65/0.28 produced. Some emissive is also
+        // structural: this canvas is transparent over the starfield, so a flank
+        // turned away from every light would otherwise vanish into it.
         const material = new THREE.MeshStandardMaterial({
-          color: color.clone().multiplyScalar(0.15),
+          color,
           emissive: color,
-          emissiveIntensity: 0.75,
-          metalness: 0.15,
-          roughness: 0.45,
+          emissiveIntensity: EMISSIVE_BASE,
+          metalness: 0.4,
+          roughness: 0.35,
         });
         const mesh = new THREE.Mesh(geometry, material);
         group.add(mesh);
@@ -423,8 +569,9 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
         return { mesh, geometry, material, curve, indexCount: geometry.index!.count };
       });
 
-      // Comet head
-      const cometGeo = new THREE.SphereGeometry(0.11, 16, 16);
+      // Comet head. Scaled up with the strands so it still reads as leading the
+      // pipe rather than being swallowed by it.
+      const cometGeo = new THREE.SphereGeometry(0.13, 16, 16);
       const cometMat = new THREE.MeshBasicMaterial({
         color: '#ffffff',
         transparent: true,
@@ -432,12 +579,15 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
       const comet = new THREE.Mesh(cometGeo, cometMat);
       group.add(comet);
       disposables.push(cometGeo, cometMat);
-      const cometLight = new THREE.PointLight('#ffffff', 22, 10, 2);
+      const cometLight = new THREE.PointLight('#ffffff', COMET_LIGHT_INTENSITY, 10, 2);
       comet.add(cometLight);
 
-      scene.add(new THREE.AmbientLight('#0a0a12', 2));
+      // Lifts the flank turned away from every orbit light without touching the
+      // specular streak that reads as roundness. Kept restrained — at '#141a2e'
+      // x3 it was washing a blue cast over the whole figure.
+      scene.add(new THREE.AmbientLight('#101828', 2));
       const orbitLights = LIGHT_COLORS.map((hex, i) => {
-        const light = new THREE.PointLight(hex, 9, 18, 2);
+        const light = new THREE.PointLight(hex, ORBIT_LIGHT_INTENSITY, 0, 2);
         const angle = (i / LIGHT_COLORS.length) * Math.PI * 2;
         light.position.set(Math.cos(angle) * 6, Math.sin(angle) * 3, 2);
         scene.add(light);
@@ -548,6 +698,9 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
       // is keeping up, render at the quality the budget above chose".
       let dprScale = 1;
       let bloomScale = QUALITY.bloomScale;
+      // Resolved pixel ratio, kept only so the dev log below can report what the
+      // budget actually settled on.
+      let renderDpr = 1;
       // The canvas is fixed, so its viewport rect only moves on resize. Reading
       // it per frame — which is what projectToScreen used to do — forces a
       // synchronous layout on the main thread during the busiest part of the
@@ -566,13 +719,18 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
           // blurry 3D scene.
           Math.min(1, window.devicePixelRatio || 1),
           Math.min(
-            window.devicePixelRatio || 1,
+            // Supersample: on a desktop this asks for twice the device's own
+            // pixels and lets the display downscale them. Capping at
+            // devicePixelRatio, which is what this used to do, meant an ordinary
+            // 1x monitor rendered the figure 1:1.
+            (window.devicePixelRatio || 1) * QUALITY.superSample,
             QUALITY.maxDpr,
             // Budget total pixels so a large dense screen doesn't render a
             // 4K-sized frame.
             Math.max(QUALITY.minDpr, Math.sqrt(QUALITY.maxPixels / Math.max(1, w * h)))
           ) * dprScale
         );
+        renderDpr = dpr;
         renderer.setPixelRatio(dpr);
         renderer.setSize(w, h, false);
         // The composer captured a pixel ratio of 1 at construction, so without
@@ -624,6 +782,23 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
       };
       resize();
 
+      // Every one of these was previously something you had to infer from the
+      // source and a calculator, which is how a 30% figure reduction quietly
+      // took the line weight down with it for four commits running.
+      if (import.meta.env.DEV) {
+        // info, not debug: Chrome files console.debug under the Verbose level,
+        // which is off by default, so it was invisible where it was needed.
+        console.info('[hero infinity]', {
+          cssPerWorld: +cssPerWorld.toFixed(1),
+          bandPx: +bandPx.toFixed(1),
+          strands,
+          // Heaviest filament; the lightest is QUALITY.weightFloor of this.
+          tubePx: +tubePx.toFixed(2),
+          thinnestPx: +(tubePx * QUALITY.weightFloor).toFixed(2),
+          dpr: +renderDpr.toFixed(2),
+        });
+      }
+
       // ---------------------------------------------------------------
       // Interaction
       // ---------------------------------------------------------------
@@ -641,7 +816,9 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
         tubes.forEach((tube, i) => {
           const c = new THREE.Color().setHSL((baseHue + i * 0.09) % 1, 0.75, 0.72);
           tube.material.emissive.copy(c);
-          tube.material.color.copy(c).multiplyScalar(0.15);
+          // Full albedo — the strands are lit now, so this tints the specular
+          // highlight rather than being a near-black base under an emissive.
+          tube.material.color.copy(c);
         });
         orbitLights.forEach(({ light }, i) =>
           light.color.setHSL((baseHue + 0.5 + i * 0.12) % 1, 0.85, 0.6)
@@ -913,7 +1090,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
           comet.position.copy(headPos);
           comet.scale.setScalar(0.3 + fade * 0.7);
           cometMat.opacity = fade;
-          cometLight.intensity = 22 * fade;
+          cometLight.intensity = COMET_LIGHT_INTENSITY * fade;
           if (Math.random() < fade * 0.9) {
             spawn(
               headPos,
@@ -964,8 +1141,13 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
           group.rotation.z = Math.sin(td * 0.053) * 0.04 * ramp;
           camera.position.z = baseCameraZ + Math.sin(td * 0.037) * 0.45 * ramp;
 
-          const breatheTarget = 0.68 + Math.sin(td * 0.8) * 0.08;
-          const breathe = 0.75 + (breatheTarget - 0.75) * ramp;
+          // Same proportional breath as before (roughly 0.9 +/- 0.11 of rest),
+          // expressed against the floor so it follows the material instead of
+          // being pinned to the emissive level the old one happened to use.
+          const breatheTarget =
+            EMISSIVE_BASE * (0.9 + Math.sin(td * 0.8) * 0.11);
+          const breathe =
+            EMISSIVE_BASE + (breatheTarget - EMISSIVE_BASE) * ramp;
           tubes.forEach((tube) => (tube.material.emissiveIntensity = breathe));
 
           if (bloomBase > 0.5) {
