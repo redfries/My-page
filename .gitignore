@@ -30,3 +30,6 @@ scratch/
 *.sln
 *.sw?
 .mcp.json
+
+# Superdesign temp files
+.superdesign/tmp/
