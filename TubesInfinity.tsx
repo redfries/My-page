@@ -197,23 +197,61 @@ const TUBE_COLORS = [
 const LIGHT_COLORS = ['#7dd3fc', '#a78bfa', '#f0abfc', '#60aed5'];
 
 /**
- * Resting brightness of a filament's own glow. Set near 1 so a strand's core
- * clips flat under linear response — that hard white centre with a coloured
- * edge is what makes a thin strand read as light rather than as a thin object.
- * A filament two pixels across cannot afford to be a mid-tone: at that width a
- * soft grey gradient is all you would see, which is what "low res" looked like.
+ * Master brightness of the figure — the one knob to turn when the mark is too
+ * hot or too dim. Everything that emits is scaled by it, and so is the bloom
+ * cut, so the *same* filaments keep glowing instead of the violets dropping out
+ * of the halo the moment the scene dims.
+ *
+ * 1 is the level the bundle first shipped at, and it was far too hot: under
+ * linear response — scale and clip, no filmic shoulder — a white strand landed
+ * near 2.0 where 1.0 is already pure white. Every filament clipped flat, they
+ * fused into one solid slab of light, and the braid the bundle exists to show
+ * was invisible. The band that carries the detail is the one *below* clipping,
+ * so the scene has to sit low enough that only the hottest cores reach it.
  */
-const EMISSIVE_BASE = 0.92;
+const BRIGHTNESS = 0.45;
+
+/**
+ * Resting brightness of a filament's own glow. High enough that a heavy white
+ * strand's core still reaches white — that hard centre with a coloured edge is
+ * what makes a thin strand read as light rather than as a thin object — but not
+ * so high that the whole bundle gets there at once. A filament two pixels across
+ * cannot afford to be a flat mid-tone either: at that width a soft grey gradient
+ * is all you would see, which is what "low res" looked like.
+ */
+const EMISSIVE_BASE = 0.92 * BRIGHTNESS;
 /**
  * Point lights add the highlight that makes a strand read as round; the emissive
  * above carries the body. Tuned against a linear response, where a specular peak
  * only has to clear 1.0 to clip white — the 110 that a filmic curve needed would
- * blow out most of the figure here. `distance: 0` is true inverse-square; the
+ * blow out the entire figure here. `distance: 0` is true inverse-square; the
  * old cutoff at 18 world units clipped the falloff partway across a figure that
  * spans ~13, putting a soft edge on the lighting as the lights orbited.
  */
-const ORBIT_LIGHT_INTENSITY = 40;
-const COMET_LIGHT_INTENSITY = 30;
+const ORBIT_LIGHT_INTENSITY = 40 * BRIGHTNESS;
+const COMET_LIGHT_INTENSITY = 30 * BRIGHTNESS;
+/**
+ * Fill on the flank turned away from every orbit light. Flat, so it lifts the
+ * whole figure at once — which makes it the fastest way to wash out the
+ * contrast between filaments, and the reason it stays this dim.
+ */
+const AMBIENT_INTENSITY = 2 * BRIGHTNESS;
+
+/**
+ * Glow strength at each point in the timeline. Not scaled by BRIGHTNESS — it
+ * does not need to be. The pass blooms whatever clears its threshold, and both
+ * sides of that subtraction already move with BRIGHTNESS, so the halo dims in
+ * step with the figure on its own. Scaling here as well would square the effect
+ * and kill the glow outright.
+ */
+const BLOOM = {
+  /** Resting level, and the floor everything else decays back to. */
+  idle: 0.5,
+  /** Peak as the circuit closes, bled off across the settle. */
+  ignite: 1.2,
+  /** Click burst — a lift, not a flash. */
+  burst: 0.9,
+};
 
 const easeInOutCubic = (t: number) =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -429,16 +467,18 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
       composer.addPass(new RenderPass(scene, camera));
       // The threshold is measured in luminance, and this palette is blue-heavy —
       // blue carries 7% of luminance, so #818cf8 at full emissive still only
-      // reads 0.46 against white's 1.10. The cut has to clear the dimmest
+      // reads about half what white does. The cut has to clear the dimmest
       // filament or the violets and indigos silently stop glowing while the
-      // whites bloom, which reads as an inconsistent, patchy mark. Radius stays
+      // whites bloom, which reads as an inconsistent, patchy mark. It scales
+      // with BRIGHTNESS for that reason: held at a fixed 0.42 while the scene
+      // dimmed, it would have swallowed the coloured strands whole. Radius stays
       // tight; strands this thin are a small source, so a wide spread turns into
       // the frame-wide haze the fat-strand version had.
       const bloomPass = new UnrealBloomPass(
         new THREE.Vector2(256, 256),
-        0.5,
+        BLOOM.idle,
         0.3,
-        0.42
+        0.42 * BRIGHTNESS
       );
       composer.addPass(bloomPass);
       composer.addPass(new OutputPass());
@@ -585,7 +625,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
       // Lifts the flank turned away from every orbit light without touching the
       // specular streak that reads as roundness. Kept restrained — at '#141a2e'
       // x3 it was washing a blue cast over the whole figure.
-      scene.add(new THREE.AmbientLight('#101828', 2));
+      scene.add(new THREE.AmbientLight('#101828', AMBIENT_INTENSITY));
       const orbitLights = LIGHT_COLORS.map((hex, i) => {
         const light = new THREE.PointLight(hex, ORBIT_LIGHT_INTENSITY, 0, 2);
         const angle = (i / LIGHT_COLORS.length) * Math.PI * 2;
@@ -796,6 +836,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
           tubePx: +tubePx.toFixed(2),
           thinnestPx: +(tubePx * QUALITY.weightFloor).toFixed(2),
           dpr: +renderDpr.toFixed(2),
+          brightness: BRIGHTNESS,
         });
       }
 
@@ -823,7 +864,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
         orbitLights.forEach(({ light }, i) =>
           light.color.setHSL((baseHue + 0.5 + i * 0.12) % 1, 0.85, 0.6)
         );
-        bloomBase = 0.9;
+        bloomBase = BLOOM.burst;
       };
       // Under reduced motion the scene is drawn exactly once, so anything that
       // resizes the drawing buffer has to redraw it or the canvas is left blank.
@@ -895,7 +936,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
       let degraded = 0;
       // The timeline writes here rather than to the pass, so the scroll-out fade
       // can scale it without either of them overwriting the other.
-      let bloomBase = 0.5;
+      let bloomBase = BLOOM.idle;
       let backdrop = false;
       let throttleAcc = 0;
       const clock = new THREE.Clock();
@@ -960,7 +1001,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
         phase = 'settle';
         settleStart = elapsed;
         cometSpeed = TERMINAL_SPEED;
-        bloomBase = 1.2;
+        bloomBase = BLOOM.ignite;
         // Circuit closes: the charge distributes around the ring as dust.
         for (let i = 0; i < 30; i++) {
           tubes[0].curve.getPoint(i / 30, dustOrigin);
@@ -1081,7 +1122,8 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
         if (phase === 'settle') {
           const t = clamp01((elapsed - settleStart) / TIMING.settleDuration);
           const fade = 1 - easeInOutCubic(t);
-          bloomBase = 1.2 - (1.2 - 0.5) * easeInOutCubic(t);
+          bloomBase =
+            BLOOM.ignite - (BLOOM.ignite - BLOOM.idle) * easeInOutCubic(t);
 
           cometProgress += cometSpeed * dt;
           tubes[0].curve.getPoint(wrap01(cometProgress), headPos);
@@ -1150,8 +1192,8 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
             EMISSIVE_BASE + (breatheTarget - EMISSIVE_BASE) * ramp;
           tubes.forEach((tube) => (tube.material.emissiveIntensity = breathe));
 
-          if (bloomBase > 0.5) {
-            bloomBase = Math.max(0.5, bloomBase - dt * 1.5);
+          if (bloomBase > BLOOM.idle) {
+            bloomBase = Math.max(BLOOM.idle, bloomBase - dt * 1.5);
           }
 
           dustTimer += dt;
