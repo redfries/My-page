@@ -45,13 +45,12 @@ Shabaaz-Portfolio/
     │   ├── index.html                # Cheque OCR research landing page
     │   ├── styles.css                # Dark technical dashboard layout
     │   └── script.js                 # Interactive pipeline visualizer & reveals
-    ├── lab/                          # Animation sandbox (infinitys.me/lab) - noindex
-    │   ├── index.html                # Standalone tubes-infinity experiment
-    │   └── infinity-tubes.js         # Self-contained Three.js engine (CDN importmap)
-    └── credit-card-tracker/          # Subproject 3: CardTrack Pro (infinitys.me/credit-card-tracker)
-        ├── index.html                # Single-page app layout (Tab Navigation, Modals, FAB)
-        ├── style.css                 # Custom dark UI styling for CardTrack Pro
-        └── app.js                    # Pure JS SPA logic, DataStore & FirestoreSync Engine
+    └── lab/                          # Animation sandbox (infinitys.me/lab) - noindex
+        ├── index.html                # Standalone tubes-infinity experiment
+        └── infinity-tubes.js         # Self-contained Three.js engine (CDN importmap)
+
+# Note: infinitys.me/credit-card-tracker/ is NOT in this repo. It is proxied to
+# its own Vercel deployment — see section D below.
 ```
 
 ---
@@ -99,15 +98,16 @@ Shabaaz-Portfolio/
 
 ---
 
-### D. Subproject 3: CardTrack Pro (`public/credit-card-tracker/`)
+### D. Subproject 3: CardTrack — **not in this repo**
 - **Route**: `https://www.infinitys.me/credit-card-tracker/`
-- **Purpose**: Credit card limit rotation, utilization tracking, dues management, and debt optimization.
-- **Architecture**:
-  - Pure JavaScript Single-Page Application (SPA) written in `app.js`.
-  - **DataStore**: In-memory store for `_cards`, `_transactions`, and `_limitGroups`.
-  - **Offline-First**: Persists state in `localStorage`.
-  - **Real-Time Sync**: Uses Firebase SDK v8 (`firebase.firestore()`) to sync data in real time under the collection path `tracker_data/{syncKey}/{colName}` (`cards`, `transactions`, `limitGroups`).
-  - **Firebase Database**: Connected to Firestore database `card-tracker-m`.
+- **Source**: [`redfries/credit-card-tracker`](https://github.com/redfries/credit-card-tracker) (private), deployed as its own Vercel project at `credit-card-tracker-iota.vercel.app`.
+- **How it is served**: `vercel.json` rewrites `/credit-card-tracker/:path*` to that deployment. Nothing is built or stored here.
+- **To change the app, push to `master` on that repo.** Do not add files under `public/credit-card-tracker/` — Vercel matches the filesystem *before* rewrites, so any file there silently shadows the proxy and pins the route to a stale copy.
+
+Until 3 Aug 2026 this route was a hand-copied snapshot in `public/credit-card-tracker/`
+(`index.html`, `style.css`, `app.js`). It went stale — the source repo was rebuilt and
+the copy here was not, so the live site served a June build for six weeks. The proxy
+exists so the two repos cannot drift apart again.
 
 ---
 
@@ -117,7 +117,18 @@ All routing, rewrites, and HTTP header rules are centralized in [`vercel.json`](
 
 ```json
 {
+  "redirects": [
+    {
+      "source": "/credit-card-tracker",
+      "destination": "/credit-card-tracker/",
+      "permanent": true
+    }
+  ],
   "rewrites": [
+    {
+      "source": "/credit-card-tracker/:path*",
+      "destination": "https://credit-card-tracker-iota.vercel.app/:path*"
+    },
     {
       "source": "/pre/:path*",
       "destination": "/pre/index.html"
@@ -151,7 +162,9 @@ All routing, rewrites, and HTTP header rules are centralized in [`vercel.json`](
 
 ### Critical Rules for Agents:
 1. **Never Delete `vercel.json`**: Vercel relies on this file to map static subprojects correctly without 404s on page refresh.
-2. **Enforce Cache Control for Credit Card Tracker**: The `Cache-Control: max-age=0, no-cache, no-store, must-revalidate` header ensures users always load the newest JavaScript state rather than stale CDN caches.
+2. **Enforce Cache Control for Credit Card Tracker**: The `Cache-Control: max-age=0, no-cache, no-store, must-revalidate` header ensures users always load the newest JavaScript state rather than stale CDN caches. The tracker's own repo sets the same headers, so it is correct on either origin.
+3. **The bare `/credit-card-tracker` path must stay a redirect, not a rewrite**: the app loads its CSS and JS with relative paths, so without the trailing slash the browser resolves them against `/` and the page loads unstyled and dead.
+4. **Never recreate `public/credit-card-tracker/`**: filesystem matches beat rewrites, so a file there takes the route back off the proxy.
 
 ---
 

@@ -1,5 +1,16 @@
 {
+  "redirects": [
+    {
+      "source": "/credit-card-tracker",
+      "destination": "/credit-card-tracker/",
+      "permanent": true
+    }
+  ],
   "rewrites": [
+    {
+      "source": "/credit-card-tracker/:path*",
+      "destination": "https://credit-card-tracker-iota.vercel.app/:path*"
+    },
     {
       "source": "/pre/:path*",
       "destination": "/pre/index.html"
