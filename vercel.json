@@ -8,6 +8,10 @@
   ],
   "rewrites": [
     {
+      "source": "/credit-card-tracker/",
+      "destination": "https://credit-card-tracker-iota.vercel.app/"
+    },
+    {
       "source": "/credit-card-tracker/:path*",
       "destination": "https://credit-card-tracker-iota.vercel.app/:path*"
     },
