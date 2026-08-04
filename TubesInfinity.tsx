@@ -102,11 +102,76 @@ const pickTheme = (exclude?: number) => {
  * the pointer is away; that is what the reference stills are showing, not a
  * mouse being moved in a figure-8.
  *
- * So there is no path to author. The only change needed is to stop the cursor
- * from taking the wheel — see the onBeforeRender override below.
+ * So there is no path to author — the onBeforeRender override below only takes
+ * the wheel off the cursor, and then decides how much of that path is on screen
+ * at once and where it sits.
  */
 const SLEEP_TIME_SCALE_1 = 1;
 const SLEEP_TIME_SCALE_2 = 2;
+
+/**
+ * How much of the figure is on screen at once.
+ *
+ * Each tube is a chain of points: the head lerps toward the target and every
+ * other point lerps toward the one in front of it, so the strand is a trail of
+ * where the target has been. Its length is therefore (points x lag per point),
+ * and the engine's defaults — 32-128 points at lerp 0.5 — buy about a fifth of
+ * the loop. That is the single diagonal swoosh the hero was drawing: a stroke
+ * that never reached its own crossing, so it never read as an infinity.
+ *
+ * `lerp` is the lever, and it is the free one. Every point is rebuilt on the
+ * CPU each step, so buying the tail with more points would cost frame time;
+ * dropping the lerp to 0.35 instead sits each point further behind the one in
+ * front, which stretches the *same* chain over ~2.5x more of the path for no
+ * extra work at all. Measured off scratch/tail-sweep.mjs, which replays this
+ * exact chain offline:
+ *
+ *   lerp 0.50 (stock)   22-35% of the loop   a bare arc
+ *   lerp 0.35           45-60% of the loop   a full lobe, the crossing, and a
+ *                                            tail fading into the second lobe
+ *
+ * Do not push past ~70%: the tail laps the head and the strand spirals inward,
+ * which draws a second, smaller infinity inside the first. The point count is
+ * left at the engine's own 32-128 — raising it lengthens the tail too, but it
+ * is the one knob here that shows up in the frame budget.
+ */
+const TUBE_LERP = 0.35;
+
+/**
+ * The chain above lerps once per *rendered frame* with no reference to how long
+ * that frame took, so on a 120Hz phone every strand is half as long in time as
+ * on a 60Hz laptop — the same figure, drawn at half the coverage. Advancing it
+ * on a fixed step instead makes the figure identical on every display, and caps
+ * what a high-refresh screen costs: the strands are rebuilt on the CPU each
+ * step, so 120Hz now does the same work per second as 60Hz rather than double.
+ *
+ * A frame that took longer than MAX_STEPS is not made up. Falling behind slows
+ * the figure down, which is invisible; catching up would pile the whole backlog
+ * onto the slowest device in one frame.
+ */
+const SIM_STEP = 1 / 60;
+const MAX_STEPS_PER_FRAME = 3;
+
+/**
+ * Filling the strands in.
+ *
+ * Every chain starts collapsed at the origin, so the figure grows out of a
+ * point: it takes as many steps as the longest chain is long, times the lag per
+ * point, before the tail reaches its full length — about 250 steps, or four and
+ * a half seconds of watching a short arc that looks like the old swoosh.
+ *
+ * Two things happen until it is full. The clock runs fast and eases back to
+ * real time as it fills, so the figure arrives with the hero's fade-in rather
+ * than a few seconds after it. And a frame is allowed far more steps than the
+ * steady-state cap, under a millisecond budget: on a reload the module is
+ * already cached, so the engine starts inside the page's own load storm, and at
+ * the normal cap the backlog dropped by those slow early frames is enough to
+ * leave the figure stuck as a short arc long after everything else has settled.
+ */
+const FILL_STEPS = 250;
+const FILL_RATE = 2;
+const FILL_MAX_STEPS_PER_FRAME = 8;
+const FILL_BUDGET_MS = 5;
 
 /**
  * Radii in CSS pixels, matching the units the engine's sleep path uses. The
@@ -149,12 +214,13 @@ function hasWebGL(): boolean {
 /** Shape of the object the engine's factory returns. */
 interface TubesApp {
   three: {
-    camera: { position: { set(x: number, y: number, z: number): void } };
     size: { width: number; height: number; wWidth: number; wHeight: number };
-    onBeforeRender: (state: { elapsed: number }) => void;
+    onBeforeRender: (state: { elapsed: number; delta: number }) => void;
   };
+  /** The tube group is also the scene, so moving it moves the whole figure. */
   tubes: {
     target: { x: number; y: number; z: number };
+    position: { y: number };
     update(state: { elapsed: number }): void;
     setColors(colors: string[]): void;
     setLightsColors(colors: string[]): void;
@@ -235,66 +301,125 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
               intensity: LIGHT_INTENSITY,
               colors: THEMES[themeIndex].lights,
             },
+            lerp: TUBE_LERP,
           },
         });
 
         const three = app.three;
         const tubes = app.tubes;
 
-        // Vertical distance from the viewport's centre line to the reserved
-        // box's, in CSS pixels. Recomputed on scroll and resize rather than per
-        // frame — reading a rect inside the render loop would force layout every
-        // frame. The canvas is fixed, so this shifts as the hero scrolls past.
+        // Vertical distance from the canvas's centre line to the reserved box's,
+        // in CSS pixels. The canvas is fixed, so this shifts as the hero scrolls
+        // past. Recomputed only when the page has actually moved, rather than on
+        // every frame — the rect read is cheap inside the render loop (layout has
+        // already settled by then) but it is not free.
+        //
+        // Measured against the canvas rather than window.innerHeight because
+        // those two disagree on a phone: the canvas is what the engine sizes its
+        // scene to, and while the URL bar is on screen it is not the same height
+        // as the window. Comparing the box to the frame it is actually drawn in
+        // keeps the figure centred through every bar show/hide.
         let anchorOffsetPx = 0;
+        let measuredAtScrollY = NaN;
         const measureAnchor = () => {
+          measuredAtScrollY = window.scrollY;
           const el = anchorRef?.current;
-          if (!el) {
+          const canvas = canvasRef.current;
+          if (!el || !canvas) {
             anchorOffsetPx = 0;
             return;
           }
-          const rect = el.getBoundingClientRect();
+          const box = el.getBoundingClientRect();
+          const frame = canvas.getBoundingClientRect();
           anchorOffsetPx =
-            rect.top + rect.height / 2 - window.innerHeight / 2;
+            box.top + box.height / 2 - (frame.top + frame.height / 2);
         };
 
+        // Clock for the sleep path. Its own, rather than the engine's `elapsed`,
+        // because it only advances in whole SIM_STEPs and the target has to be
+        // sampled at the same instant the chain is stepped.
+        let simTime = 0;
+        let simSteps = 0;
+        let backlog = 0;
+
         /**
-         * The whole modification: the stock loop hands the target to the cursor
-         * whenever the pointer is over the canvas, and this canvas covers the
-         * viewport — so the figure would only ever be an infinity while the mouse
-         * sat still somewhere else. Overriding onBeforeRender keeps the engine's
-         * own sleep path running unconditionally, so the lemniscate is permanent
-         * and the cursor is simply not an input any more. Everything downstream —
-         * the tubes, their materials, the four lights, the bloom — is untouched
-         * engine code doing exactly what it does in the reference.
+         * The whole modification, and it is all in this one function. The stock
+         * loop hands the target to the cursor whenever the pointer is over the
+         * canvas, and this canvas covers the viewport — so the figure would only
+         * ever be an infinity while the mouse sat still somewhere else.
+         * Overriding onBeforeRender keeps the engine's own sleep path running
+         * unconditionally, on a fixed step, with the figure parked on the hero's
+         * reserved box. Everything downstream — the tubes, their materials, the
+         * four lights, the bloom — is untouched engine code doing exactly what it
+         * does in the reference.
          */
-        three.onBeforeRender = (state: { elapsed: number }) => {
+        three.onBeforeRender = (state: { elapsed: number; delta: number }) => {
           const worldPerPx = three.size.wWidth / three.size.width;
           const { rx, ry } = figureRadii();
 
-          tubes.target.x =
-            rx * worldPerPx * Math.cos(state.elapsed * SLEEP_TIME_SCALE_1);
-          tubes.target.y =
-            ry * worldPerPx * Math.sin(state.elapsed * SLEEP_TIME_SCALE_2);
+          // Driven off scrollY rather than a scroll listener: the browser fires
+          // those on its own cadence and a busy phone can coalesce the last one
+          // of a flick away, which parks the figure where the scroll used to be
+          // instead of where it ended.
+          if (window.scrollY !== measuredAtScrollY) measureAnchor();
 
-          // Pan the camera so the figure lands on the reserved box. Raising the
-          // camera pushes the scene down the frame, so a box below the centre
-          // line takes a positive offset.
-          three.camera.position.set(0, anchorOffsetPx * worldPerPx, 5);
+          const filled = Math.min(1, simSteps / FILL_STEPS);
+          const maxSteps =
+            filled < 1 ? FILL_MAX_STEPS_PER_FRAME : MAX_STEPS_PER_FRAME;
 
-          tubes.update(state);
+          // Anything past a frame's worth of steps is dropped rather than
+          // carried, so a stall — a backgrounded tab, a slow device — never ends
+          // in the figure whipping across the screen to catch up.
+          backlog = Math.min(
+            backlog + state.delta * (1 + (FILL_RATE - 1) * (1 - filled)),
+            SIM_STEP * maxSteps
+          );
+
+          const deadline = performance.now() + FILL_BUDGET_MS;
+          let steps = 0;
+          while (backlog >= SIM_STEP && steps < maxSteps) {
+            backlog -= SIM_STEP;
+            simTime += SIM_STEP;
+            simSteps++;
+            steps++;
+
+            tubes.target.x =
+              rx * worldPerPx * Math.cos(simTime * SLEEP_TIME_SCALE_1);
+            tubes.target.y =
+              ry * worldPerPx * Math.sin(simTime * SLEEP_TIME_SCALE_2);
+            tubes.update({ elapsed: simTime });
+
+            // The extra fill steps are what the budget is for; the steady-state
+            // ones are owed and always run.
+            if (steps >= MAX_STEPS_PER_FRAME && performance.now() > deadline) {
+              break;
+            }
+          }
+
+          // Slide the figure onto the reserved box. This moves the scene, not
+          // the camera, and that is load-bearing: the engine derives its world
+          // size from the camera's *distance from the origin*, so a camera that
+          // has been panned to follow the scroll makes the next resize compute a
+          // world several times too large. On a phone that resize arrives every
+          // time the URL bar shows or hides — which is on every scroll — and the
+          // enlarged world feeds straight back into the pan, so the figure grew
+          // and slid out of frame a little more with every swipe. Moving the
+          // group leaves the camera at the origin distance the engine assumes.
+          tubes.position.y = -anchorOffsetPx * worldPerPx;
         };
 
         measureAnchor();
-        const onScroll = () => measureAnchor();
         const onResize = () => {
           publishFigureBox();
           measureAnchor();
         };
-        window.addEventListener('scroll', onScroll, { passive: true });
         window.addEventListener('resize', onResize);
+        // iOS reports a URL bar collapse on the visual viewport and not always
+        // as a window resize, and that collapse changes the canvas's height.
+        window.visualViewport?.addEventListener('resize', onResize);
 
         // Syncopate arrives from Google Fonts after first paint and changes the
-        // height of the text above the figure, which moves the box the camera is
+        // height of the text above the figure, which moves the box the figure is
         // centred on. Re-measure once it lands.
         document.fonts?.ready.then(() => {
           if (!disposed) measureAnchor();
@@ -317,8 +442,8 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
         setStatus('ready');
 
         teardown = () => {
-          window.removeEventListener('scroll', onScroll);
           window.removeEventListener('resize', onResize);
+          window.visualViewport?.removeEventListener('resize', onResize);
           window.removeEventListener('click', onClick);
           // Releases the renderer and the engine's own pointer listeners. The
           // engine already parks itself off-screen via an IntersectionObserver
