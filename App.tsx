@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Github, Linkedin, Mail, ExternalLink, ArrowRight, ArrowDown, Briefcase, User, MessageSquare } from 'lucide-react';
 import TubesInfinity, { heroWarp, type HeroStatus } from './TubesInfinity';
+import Starfield from './Starfield';
 
 // --- Types ---
 interface Project {
@@ -337,18 +338,13 @@ const InfinitySymbol: React.FC<{ className?: string }> = ({ className }) => (
  */
 const MainHero: React.FC<{
   status: HeroStatus;
-  onStatusChange: (status: HeroStatus) => void;
-}> = ({ status, onStatusChange }) => {
-  const figureRef = useRef<HTMLDivElement>(null);
-
+  figureRef: React.RefObject<HTMLDivElement | null>;
+}> = ({ status, figureRef }) => {
   return (
     <section
       className="relative min-h-screen z-10 overflow-hidden select-none cursor-default"
       style={{ minHeight: '100svh' }}
     >
-      {/* Braided 3D infinity — a transparent, fixed, full-viewport canvas. */}
-      <TubesInfinity anchorRef={figureRef} onStatusChange={onStatusChange} />
-
       <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center pointer-events-none">
         <h2
           className="text-[clamp(0.9rem,2.1vw,1.65rem)] font-normal tracking-[0.5em] text-neutral-200 uppercase animate-fade-in-up reveal-1 mb-[clamp(8px,1.2vh,18px)] font-['Syncopate'] drop-shadow-[0_0_16px_rgba(125,211,252,0.18)]"
@@ -494,9 +490,21 @@ const Footer: React.FC = () => {
 
 export default function App() {
   const [heroStatus, setHeroStatus] = useState<HeroStatus>('loading');
+  const figureRef = useRef<HTMLDivElement>(null);
 
   return (
     <div className="relative bg-black min-h-screen text-slate-200 selection:bg-white selection:text-black">
+      {/* The page's whole background, in paint order, all of it fixed and
+          viewport-sized at z-0 so every section (z-10) sits above it.
+
+          The hero's canvas lives here rather than inside the hero section, and
+          the sky is layered on top of it rather than behind it, because the
+          engine's bloom pass composites at alpha 1 — the canvas is opaque black
+          wherever the figure is not, so anything behind it is simply not on the
+          page. Stars in front of it read correctly anyway: they are faint dots,
+          invisible against the lit tubes and visible everywhere else. */}
+      <TubesInfinity anchorRef={figureRef} onStatusChange={setHeroStatus} />
+
       {/* The dot grid is the background of last resort. The 3D starfield behind
           every section replaced it, but this canvas was still mounted
           unconditionally underneath — visible through the transparent hero
@@ -505,12 +513,14 @@ export default function App() {
           load. It is now only drawn when there is no 3D scene to replace it. */}
       {heroStatus === 'failed' && <ParticleGrid />}
 
+      <Starfield />
+
       {/* Navigation */}
       <Header />
 
       {/* Content */}
       <main>
-        <MainHero status={heroStatus} onStatusChange={setHeroStatus} />
+        <MainHero status={heroStatus} figureRef={figureRef} />
         <ProjectsSection />
         <AboutSection />
       </main>
