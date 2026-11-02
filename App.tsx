@@ -7,8 +7,9 @@ import {
   ArrowRight,
   ArrowUpRight,
   Briefcase,
-  User,
+  Cpu,
   MessageSquare,
+  ArrowUp,
 } from 'lucide-react';
 import TubesInfinity, { heroWarp, type HeroStatus } from './TubesInfinity';
 import Starfield from './Starfield';
@@ -20,40 +21,50 @@ interface Project {
   category: string;
   tagline: string;
   description: string;
+  steps: string[];
   tags: string[];
   status: string;
   accentColor: string;
+  preview?: {
+    video: string;
+    poster: string;
+  };
   links: {
     live?: string;
     github: string;
   };
 }
 
+interface Capability {
+  id: string;
+  title: string;
+  summary: string;
+  detail: string;
+  tools: string[];
+  accent: string;
+  evidence: { label: string; href: string }[];
+}
+
 // --- Constants ---
 const PROJECTS: Project[] = [
   {
-    id: "reading-with-ai",
-    title: "Reading with AI",
-    category: "Research / NLP",
-    tagline: "Read what matters.",
-    description: "A research reader that learns what you care about and ranks every passage in a paper against it. The signal rises; the noise recedes.",
-    tags: ["Qwen embeddings", "Semantic ranking", "FastAPI"],
-    status: "Live app",
-    accentColor: "#7dd3fc",
-    links: {
-      live: "https://infinitys.me/pre",
-      github: "https://github.com/redfries/personalized-reading-experience"
-    }
-  },
-  {
     id: "arabic-cheque-ocr",
     title: "Arabic Cheque OCR",
-    category: "Computer Vision",
-    tagline: "From pixels to a verified amount.",
-    description: "An end-to-end pipeline for Arabic cheques. It locates each field, reads the handwriting, and cross-checks the legal amount against the figures.",
-    tags: ["Cascade R-CNN", "TrOCR", "Qwen3.5 LoRA"],
-    status: "End-to-end system",
+    category: "Computer Vision / Model Training",
+    tagline: "Reads the cheque. Checks the amount.",
+    description: "A system that reads Arabic bank cheques end to end. It finds the important fields, reads handwriting and printed text, then checks that the written amount matches the number.",
+    steps: [
+      "Finds the payee and amount fields",
+      "Reads digits and Arabic handwriting",
+      "Flags any amount mismatch"
+    ],
+    tags: ["Cascade R-CNN", "CRNN + CTC", "Qwen3.5 LoRA"],
+    status: "Live system",
     accentColor: "#86efac",
+    preview: {
+      video: "/projects-card/arabic-cheque-ocr.mp4",
+      poster: "/projects-card/arabic-cheque-ocr-poster.jpg"
+    },
     links: {
       live: "https://infinitys.me/ocr",
       github: "https://github.com/redfries/arabic-cheque-ocr"
@@ -62,12 +73,21 @@ const PROJECTS: Project[] = [
   {
     id: "career-ops",
     title: "Career-Ops",
-    category: "Agent Systems",
-    tagline: "A pipeline, not a conversation.",
-    description: "Job search automation with a state machine underneath. It ingests a role, maps the fit, tailors a two-page LaTeX resume, submits through the ATS, and leaves a receipt at every step.",
+    category: "AI Automation / Agent Systems",
+    tagline: "From job listing to submitted application.",
+    description: "An automation system for job applications. It scores how well a role fits, creates a two-page resume for that role, fills the application, and keeps a receipt of what happened.",
+    steps: [
+      "Checks the role against the candidate profile",
+      "Tailors and compiles a two-page resume",
+      "Submits through the application site and logs proof"
+    ],
     tags: ["Playwright", "SQLite", "Tectonic"],
     status: "Open source",
     accentColor: "#fdba74",
+    preview: {
+      video: "/projects-card/career-ops.mp4",
+      poster: "/projects-card/career-ops-poster.jpg"
+    },
     links: {
       github: "https://github.com/redfries/career-ops-automation"
     }
@@ -75,16 +95,109 @@ const PROJECTS: Project[] = [
   {
     id: "paper2tex",
     title: "paper2tex",
-    category: "Developer Tooling",
-    tagline: "Your words. Your equations. Intact.",
-    description: "An agent skill that turns Word manuscripts into conference-ready LaTeX. Math comes straight from OMML, figures are straightened and scaled, and the compiler repairs its own missing packages.",
-    tags: ["Python", "Pandoc", "OMML → LaTeX"],
-    status: "Agent skill",
+    category: "Agent Tooling / Developer Tools",
+    tagline: "A paper-ready LaTeX file, without the cleanup.",
+    description: "An agent skill that converts Word research papers into LaTeX. It keeps equations and figures intact, then handles the common build errors that usually need manual repair.",
+    steps: [
+      "Converts the manuscript and its equations",
+      "Straightens and scales figures",
+      "Fixes common build errors"
+    ],
+    tags: ["Agent skill", "Pandoc", "OMML to LaTeX"],
+    status: "Open source",
     accentColor: "#c4b5fd",
     links: {
       github: "https://github.com/redfries/paper2tex"
     }
+  },
+  {
+    id: "reading-with-ai",
+    title: "Reading with AI",
+    category: "NLP / LLM Systems",
+    tagline: "Spend less time finding what matters.",
+    description: "A reading tool that learns what you care about and surfaces the most relevant passages in a long research paper, so you can spend more time on the ideas that matter.",
+    steps: [
+      "Learns your interests from a short profile",
+      "Scores each passage against those interests",
+      "Highlights the most useful parts"
+    ],
+    tags: ["Qwen embeddings", "Semantic ranking", "FastAPI"],
+    status: "Live app",
+    accentColor: "#7dd3fc",
+    links: {
+      live: "https://infinitys.me/pre",
+      github: "https://github.com/redfries/personalized-reading-experience"
+    }
   }
+];
+
+const CAPABILITIES: Capability[] = [
+  {
+    id: "capability-llm",
+    title: "LLM Systems",
+    summary: "Language models that retrieve, rank, and answer inside a real workflow.",
+    detail: "Fine-tuning with LoRA, embedding-based retrieval, semantic ranking, and evaluation against the task the model is actually meant to do.",
+    tools: ["Qwen", "LoRA / PEFT", "Embeddings", "Semantic ranking", "Transformers"],
+    accent: "#7dd3fc",
+    evidence: [
+      { label: "Reading with AI", href: "https://infinitys.me/pre" },
+      { label: "Arabic Cheque OCR", href: "https://infinitys.me/ocr" },
+    ],
+  },
+  {
+    id: "capability-training",
+    title: "Model Training",
+    summary: "Domain models trained on real data, with failure analysis that means something.",
+    detail: "Dataset design, detection and recognition training, and evaluation that shows where a model breaks instead of only how often it is right.",
+    tools: ["PyTorch", "Detectron2", "Cascade R-CNN", "CRNN + CTC", "OpenCV"],
+    accent: "#86efac",
+    evidence: [
+      { label: "Arabic Cheque OCR", href: "https://infinitys.me/ocr" },
+    ],
+  },
+  {
+    id: "capability-vision-language",
+    title: "Vision & Language",
+    summary: "Messy documents, handwriting, and Arabic text turned into structured data.",
+    detail: "Field detection, handwriting recognition, PDF extraction, and language models tuned for documents people already use.",
+    tools: ["Arabic NLP", "Document AI", "PyMuPDF", "Streamlit", "FastAPI"],
+    accent: "#e7d3a1",
+    evidence: [
+      { label: "Arabic Cheque OCR", href: "https://infinitys.me/ocr" },
+      { label: "Reading with AI", href: "https://infinitys.me/pre" },
+    ],
+  },
+  {
+    id: "capability-agents",
+    title: "Agents & Automation",
+    summary: "Work that runs end to end, with a visible record of every step.",
+    detail: "Tool use, browser automation, state, retries, and receipts, built so a broken step can be found and fixed.",
+    tools: ["Playwright", "Tool use", "SQLite", "Stateful pipelines", "Tectonic"],
+    accent: "#fdba74",
+    evidence: [
+      { label: "Career-Ops", href: "https://github.com/redfries/career-ops-automation" },
+      { label: "paper2tex", href: "https://github.com/redfries/paper2tex" },
+    ],
+  },
+];
+
+const STACK_GROUPS = [
+  {
+    label: "Modeling & training",
+    items: ["Python", "PyTorch", "Transformers", "PEFT / LoRA", "Detectron2"],
+  },
+  {
+    label: "Language & retrieval",
+    items: ["Qwen", "Embeddings", "CRNN + CTC", "Semantic ranking", "Arabic NLP"],
+  },
+  {
+    label: "Systems & delivery",
+    items: ["FastAPI", "Modal", "Streamlit", "SQLite", "Playwright"],
+  },
+  {
+    label: "Interface",
+    items: ["React", "TypeScript", "Vite", "Tailwind CSS"],
+  },
 ];
 
 // --- Components ---
@@ -279,8 +392,8 @@ const Header: React.FC = () => {
             <span className="hidden md:block text-xs font-bold tracking-[0.2em] uppercase">Work</span>
           </a>
           <a href="#about" className="hover:text-white transition-colors duration-300 flex items-center">
-            <span className="md:hidden"><User size={20} /></span>
-            <span className="hidden md:block text-xs font-bold tracking-[0.2em] uppercase">Profile</span>
+            <span className="md:hidden"><Cpu size={20} /></span>
+            <span className="hidden md:block text-xs font-bold tracking-[0.2em] uppercase">Capabilities</span>
           </a>
           <a href="#contact" className="hover:text-white transition-colors duration-300 flex items-center">
             <span className="md:hidden"><MessageSquare size={20} /></span>
@@ -293,7 +406,7 @@ const Header: React.FC = () => {
 };
 
 const ProjectFrame: React.FC<{ accentColor: string; children: React.ReactNode }> = ({ accentColor, children }) => (
-  <div className="relative h-[228px] shrink-0 overflow-hidden border-b border-white/[0.06] bg-[#050505] sm:h-[258px]">
+  <div className="absolute inset-0 overflow-hidden bg-[#050505]">
     <div className="showcase-grid absolute inset-0 opacity-60" />
     <div
       className="absolute inset-0"
@@ -444,53 +557,120 @@ const ProjectVisual: React.FC<{ projectId: string }> = ({ projectId }) => {
   }
 };
 
+const useReducedMotion = () => {
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updatePreference = () => setReducedMotion(query.matches);
+
+    updatePreference();
+    query.addEventListener('change', updatePreference);
+    return () => query.removeEventListener('change', updatePreference);
+  }, []);
+
+  return reducedMotion;
+};
+
+const ProjectVideo: React.FC<{ project: Project }> = ({ project }) => {
+  const reducedMotion = useReducedMotion();
+  if (!project.preview) return null;
+
+  return (
+    <div className="absolute inset-0 bg-[#050505]">
+      <div className="showcase-grid absolute inset-0 opacity-30" />
+      <video
+        className="relative h-full w-full object-contain"
+        autoPlay={!reducedMotion}
+        loop={!reducedMotion}
+        muted
+        playsInline
+        preload="metadata"
+        poster={project.preview.poster}
+        aria-hidden="true"
+      >
+        <source src={project.preview.video} type="video/mp4" />
+      </video>
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.12),transparent_24%,transparent_76%,rgba(0,0,0,0.26))]" />
+    </div>
+  );
+};
+
+const ProjectPreview: React.FC<{ project: Project }> = ({ project }) => (
+  project.preview
+    ? <ProjectVideo project={project} />
+    : <ProjectVisual projectId={project.id} />
+);
+
 const ProjectCard: React.FC<{ project: Project; index: number }> = ({ project, index }) => {
   const href = project.links.live ?? project.links.github;
+  const linkLabel = project.links.live ? 'View live project' : 'View source on GitHub';
 
   return (
     <a
       href={href}
       target="_blank"
       rel="noreferrer"
-      aria-label={`Open ${project.title}`}
-      className="showcase-card group relative flex h-full flex-col overflow-hidden rounded-[20px] border border-white/[0.08] bg-[#070707]/85 backdrop-blur-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/40"
+      aria-label={`${linkLabel}: ${project.title}`}
+      className="showcase-card group relative grid overflow-hidden rounded-[22px] border border-white/[0.08] bg-[#070707]/90 backdrop-blur-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/40 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]"
     >
       <div
-        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-700 group-hover:opacity-100"
-        style={{ background: `radial-gradient(70% 48% at 18% 0%, ${project.accentColor}14, transparent 72%)` }}
+        className="pointer-events-none absolute inset-0 z-20 opacity-0 transition-opacity duration-700 group-hover:opacity-100"
+        style={{ background: `radial-gradient(65% 55% at 16% 12%, ${project.accentColor}12, transparent 72%)` }}
       />
-      <ProjectVisual projectId={project.id} />
 
-      <div className="relative flex flex-1 flex-col p-6 md:p-7">
-        <div className="flex items-center justify-between gap-4">
-          <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-neutral-500">
-            {String(index + 1).padStart(2, '0')} / {project.category}
+      <div className="relative min-h-[260px] overflow-hidden border-b border-white/[0.07] sm:min-h-[320px] lg:min-h-[440px] lg:border-b-0 lg:border-r">
+        <ProjectPreview project={project} />
+      </div>
+
+      <div className="relative z-10 flex flex-col p-7 md:p-9 lg:p-10 xl:p-11">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] pb-5 font-mono text-[9px] uppercase tracking-[0.2em] text-neutral-500">
+          <div className="flex items-center gap-3">
+            <span className="text-neutral-300">{String(index + 1).padStart(2, '0')}</span>
+            <span className="h-px w-5 bg-white/15" />
+            <span>{project.category}</span>
+          </div>
+          <span className="rounded-full border border-white/[0.08] px-2.5 py-1 tracking-[0.14em] text-neutral-400">
+            {project.status}
           </span>
-          <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-neutral-500">{project.status}</span>
         </div>
 
-        <h3 className="mt-5 font-['Syncopate'] text-[clamp(1.3rem,2.2vw,1.8rem)] font-bold leading-[1.15] tracking-tight text-white">
+        <h3 className="mt-7 font-['Syncopate'] text-[clamp(1.55rem,3vw,2.35rem)] font-bold leading-[1.08] tracking-[-0.035em] text-white">
           {project.title}
         </h3>
-        <p className="mt-3 max-w-[54ch] text-sm leading-relaxed text-neutral-400">{project.description}</p>
+        <p className="mt-4 font-['Instrument_Serif'] text-[clamp(1.25rem,2vw,1.55rem)] italic leading-[1.25] text-neutral-200">
+          {project.tagline}
+        </p>
+        <p className="mt-5 max-w-[56ch] text-[15px] leading-7 text-neutral-400">
+          {project.description}
+        </p>
 
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-7 border-t border-white/[0.07] pt-5">
+          <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-neutral-600">How it works</p>
+          <ol className="mt-4 space-y-3">
+            {project.steps.map((step, stepIndex) => (
+              <li key={step} className="flex gap-3 text-[13px] leading-5 text-neutral-400">
+                <span className="mt-0.5 font-mono text-[9px] text-neutral-600">0{stepIndex + 1}</span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <div className="mt-6 flex flex-wrap gap-2">
           {project.tags.map(tag => (
-            <span
-              key={tag}
-              className="rounded-full border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 font-mono text-[10px] tracking-wide text-neutral-500 transition-colors duration-500 group-hover:border-white/[0.14] group-hover:text-neutral-400"
-            >
+            <span key={tag} className="rounded-full border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 font-mono text-[10px] tracking-wide text-neutral-500 transition-colors duration-500 group-hover:border-white/[0.14] group-hover:text-neutral-400">
               {tag}
             </span>
           ))}
         </div>
 
-        <div className="mt-auto flex items-end justify-between gap-5 pt-7">
-          <p className="font-['Instrument_Serif'] text-[19px] italic leading-snug text-neutral-500 transition-colors duration-500 group-hover:text-neutral-300">
-            {project.tagline}
-          </p>
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 text-neutral-400 transition-all duration-500 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:border-white/25 group-hover:text-white">
-            <ArrowUpRight size={15} />
+        <div className="mt-auto flex items-center justify-between gap-5 pt-8">
+          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-500 transition-colors duration-500 group-hover:text-neutral-300">
+            {linkLabel}
+          </span>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 text-neutral-400 transition-all duration-500 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:border-white/25 group-hover:text-white">
+            <ArrowUpRight size={16} />
           </span>
         </div>
       </div>
@@ -575,8 +755,8 @@ const MainHero: React.FC<{
           And Beyond
         </h1>
 
-        <p className="max-w-md mx-auto text-neutral-500 text-[11px] sm:text-xs tracking-[0.2em] mt-9 font-mono text-center uppercase animate-fade-in reveal-3 opacity-75 [@media(max-height:640px)]:hidden">
-          EXPLORING THE BOUNDARIES OF MACHINE INTELLIGENCE AND APPLIED AI RESEARCH
+        <p className="mx-auto mt-9 max-w-xl text-center text-sm leading-7 text-neutral-400 animate-fade-in reveal-3 opacity-85 sm:text-base [@media(max-height:640px)]:hidden">
+          I train models, build with LLMs, and design AI agents that turn difficult work into dependable automation.
         </p>
       </div>
 
@@ -603,45 +783,38 @@ const ProjectsSection: React.FC = () => {
               <span className="text-neutral-600">/ 04</span>
             </div>
             <h2 className="mt-5 font-['Syncopate'] text-[clamp(2.75rem,7vw,5.5rem)] font-bold leading-[0.95] tracking-[-0.06em] text-white">
-              WORKS
+              AI SYSTEMS
             </h2>
           </div>
 
-          <div className="lg:col-span-5 lg:max-w-[360px] lg:justify-self-end">
-            <p className="font-['Instrument_Serif'] text-2xl italic leading-tight text-neutral-300 md:text-[28px]">
-              Research, vision, and systems that earn their place.
+          <div className="lg:col-span-5 lg:max-w-[420px] lg:justify-self-end">
+            <p className="font-['Instrument_Serif'] text-2xl italic leading-tight text-neutral-200 md:text-[30px]">
+              Model training, LLM systems, and agents built for real work.
             </p>
-            <p className="mt-4 text-sm leading-relaxed text-neutral-500">
-              Four projects built around real problems — from reading a paper to verifying a cheque to shipping an application end to end.
+            <p className="mt-4 text-sm leading-6 text-neutral-500">
+              I start with a difficult workflow, train or connect the right models, and build the system around them so it can be used in practice.
             </p>
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 font-mono text-[9px] uppercase tracking-[0.22em] text-neutral-500">
-          <span>Research / NLP</span>
-          <span>Computer Vision</span>
-          <span>Agent Systems</span>
-          <span>Developer Tooling</span>
+        <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[9px] uppercase tracking-[0.22em] text-neutral-500">
+          <span>Model training</span>
+          <span className="h-1 w-1 rounded-full bg-neutral-700" />
+          <span>LLM systems</span>
+          <span className="h-1 w-1 rounded-full bg-neutral-700" />
+          <span>AI agents</span>
+          <span className="h-1 w-1 rounded-full bg-neutral-700" />
+          <span>Applied automation</span>
         </div>
 
-        <div className="mt-10 grid grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-12">
-          <div className="h-full lg:col-span-1 xl:col-span-7">
-            <ProjectCard project={PROJECTS[0]} index={0} />
-          </div>
-          <div className="h-full lg:col-span-1 xl:col-span-5">
-            <ProjectCard project={PROJECTS[1]} index={1} />
-          </div>
-          <div className="h-full lg:col-span-1 xl:col-span-5">
-            <ProjectCard project={PROJECTS[2]} index={2} />
-          </div>
-          <div className="h-full lg:col-span-1 xl:col-span-7">
-            <ProjectCard project={PROJECTS[3]} index={3} />
-          </div>
+        <div className="mt-10 space-y-5">
+          {PROJECTS.map((project, index) => (
+            <ProjectCard key={project.id} project={project} index={index} />
+          ))}
         </div>
 
-        <div className="mt-8 flex flex-col gap-4 border-t border-white/[0.06] pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-8 flex flex-col items-end border-t border-white/[0.06] pt-6 sm:flex-row sm:items-center sm:justify-end">
           <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-500">
-            Selected projects · four systems
           </p>
           <a
             href="https://github.com/redfries"
@@ -658,75 +831,281 @@ const ProjectsSection: React.FC = () => {
   );
 };
 
+const CapabilityRow: React.FC<{ capability: Capability; index: number }> = ({ capability, index }) => (
+  <article
+    id={capability.id}
+    className="group scroll-mt-24 border-b border-white/[0.07] transition-colors duration-500 hover:bg-white/[0.018]"
+  >
+    <div className="grid gap-6 py-9 md:grid-cols-12 md:gap-8 md:py-11">
+      <div className="flex items-center gap-4 md:col-span-1 md:items-start">
+        <span className="font-mono text-[10px] tracking-[0.2em] text-neutral-600">
+          0{index + 1}
+        </span>
+        <span className="h-px w-6 bg-white/10 md:hidden" />
+      </div>
+
+      <div className="md:col-span-5">
+        <div className="flex items-center gap-3">
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full"
+            style={{ backgroundColor: capability.accent }}
+          />
+          <h3 className="font-['Syncopate'] text-[clamp(1.2rem,2.4vw,1.75rem)] font-bold tracking-[-0.03em] text-white">
+            {capability.title}
+          </h3>
+        </div>
+        <p className="mt-4 max-w-[46ch] font-['Instrument_Serif'] text-[clamp(1.22rem,1.9vw,1.5rem)] italic leading-[1.3] text-neutral-200">
+          {capability.summary}
+        </p>
+        <p className="mt-3 max-w-[52ch] text-sm leading-6 text-neutral-500">
+          {capability.detail}
+        </p>
+      </div>
+
+      <div className="flex flex-col justify-between gap-6 md:col-span-6 md:pl-4">
+        <div className="flex flex-wrap content-start gap-2">
+          {capability.tools.map((tool) => (
+            <span
+              key={tool}
+              className="rounded-full border border-white/[0.07] bg-white/[0.02] px-2.5 py-1 font-mono text-[10px] tracking-wide text-neutral-500 transition-colors duration-500 group-hover:border-white/[0.13] group-hover:text-neutral-300"
+            >
+              {tool}
+            </span>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/[0.06] pt-4 font-mono text-[9px] uppercase tracking-[0.18em] text-neutral-600">
+          <span>Built in</span>
+          {capability.evidence.map((item) => (
+            <a
+              key={item.label}
+              href={item.href}
+              target="_blank"
+              rel="noreferrer"
+              className="group/link inline-flex items-center gap-1.5 text-neutral-400 transition-colors hover:text-white"
+            >
+              {item.label}
+              <ArrowUpRight
+                size={11}
+                className="transition-transform duration-300 group-hover/link:-translate-y-0.5 group-hover/link:translate-x-0.5"
+              />
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  </article>
+);
+
 const AboutSection: React.FC = () => {
   return (
-    <section id="about" className="py-32 relative z-10 bg-[#080808]/80 backdrop-blur-sm select-none cursor-default">
+    <section
+      id="about"
+      className="relative z-10 scroll-mt-20 border-t border-white/[0.06] bg-[#050505]/75 py-24 backdrop-blur-sm select-none cursor-default md:py-32"
+    >
       <div className="container mx-auto px-6 md:px-12">
-        
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
-          {/* Title Column */}
-          <div className="lg:col-span-4">
-             <h2 className="text-4xl font-bold text-white font-['Syncopate'] mb-8">
-               PROFILE
-             </h2>
-             <div className="w-12 h-1 bg-white mb-8" />
-             
-             <div className="space-y-4">
-                <a href="https://github.com/redfries" target="_blank" rel="noreferrer" className="flex items-center gap-4 text-neutral-400 hover:text-white transition-colors group cursor-pointer">
-                  <Github size={20} className="group-hover:scale-110 transition-transform" /> <span className="text-sm tracking-widest">GITHUB</span>
-                </a>
-                <a href="https://www.linkedin.com/in/redfries/" target="_blank" rel="noreferrer" className="flex items-center gap-4 text-neutral-400 hover:text-white transition-colors group cursor-pointer">
-                  <Linkedin size={20} className="group-hover:scale-110 transition-transform" /> <span className="text-sm tracking-widest">LINKEDIN</span>
-                </a>
-                <a href="mailto:studioinfinitys@gmail.com" className="flex items-center gap-4 text-neutral-400 hover:text-white transition-colors group cursor-pointer">
-                  <Mail size={20} className="group-hover:scale-110 transition-transform" /> <span className="text-sm tracking-widest">CONTACT</span>
-                </a>
-             </div>
+        <div className="grid gap-8 lg:grid-cols-12 lg:items-end">
+          <div className="lg:col-span-7">
+            <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.28em] text-neutral-500">
+              <span className="h-px w-8 bg-white/25" />
+              Capabilities
+              <span className="text-neutral-600">/ 04</span>
+            </div>
+            <h2 className="mt-5 font-['Syncopate'] text-[clamp(2.6rem,6.6vw,5.5rem)] font-bold leading-[0.95] tracking-[-0.06em] text-white">
+              FROM MODEL
+              <br />
+              TO SYSTEM
+            </h2>
           </div>
 
-          {/* Content Column */}
-          <div className="lg:col-span-8 space-y-12">
-            <p className="text-2xl md:text-4xl text-neutral-300 font-light leading-relaxed">
-              I am an AI & Machine Learning Engineer specializing in <span className="text-white font-normal">Deep Learning, Computer Vision, and LLMs</span>. 
-              My work bridges cutting-edge research with clean, high-precision engineering.
+          <div className="lg:col-span-5 lg:max-w-[430px] lg:justify-self-end">
+            <p className="font-['Instrument_Serif'] text-2xl italic leading-tight text-neutral-200 md:text-[30px]">
+              The model is one part. The system around it is the job.
             </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-8 border-t border-white/10">
-              <div>
-                <h3 className="text-sm text-neutral-500 tracking-[0.2em] mb-4 uppercase">Specialization</h3>
-                <ul className="space-y-2 text-neutral-300 font-mono text-sm">
-                  <li>Machine Learning (ML)</li>
-                  <li>Large Language Models (LLM)</li>
-                  <li>Natural Language Processing (NLP)</li>
-                  <li>AI Research & Development</li>
-                </ul>
-              </div>
-              <div>
-                <h3 className="text-sm text-neutral-500 tracking-[0.2em] mb-4 uppercase">Stack</h3>
-                <ul className="space-y-2 text-neutral-300 font-mono text-sm">
-                  <li>Python / PyTorch / TensorFlow</li>
-                  <li>React / TypeScript / Next.js</li>
-                  <li>Node.js / FastAPI / SQL</li>
-                  <li>LangChain / Hugging Face</li>
-                </ul>
-              </div>
-            </div>
+            <p className="mt-4 text-sm leading-6 text-neutral-500">
+              I work across data, training, evaluation, and delivery, usually on workflows where a wrong answer has a cost. These are the four areas where most of that work happens.
+            </p>
           </div>
         </div>
 
+        <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[9px] uppercase tracking-[0.2em] text-neutral-500">
+          {["Machine learning", "LLM systems", "Model training", "Computer vision", "NLP", "Agents"].map((area, index) => (
+            <span key={area} className="flex items-center gap-4">
+              {index > 0 && <span className="h-1 w-1 rounded-full bg-neutral-700" />}
+              {area}
+            </span>
+          ))}
+        </div>
+
+        <div className="mt-10 border-t border-white/[0.08] md:mt-14">
+          {CAPABILITIES.map((capability, index) => (
+            <CapabilityRow key={capability.id} capability={capability} index={index} />
+          ))}
+        </div>
+
+        <div className="mt-16 grid gap-10 border-t border-white/[0.08] pt-10 lg:grid-cols-12 lg:gap-12">
+          <div className="lg:col-span-3">
+            <div className="flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.24em] text-neutral-600">
+              <span className="h-px w-6 bg-white/20" />
+              Toolkit
+            </div>
+            <h3 className="mt-4 font-['Syncopate'] text-2xl font-bold tracking-[-0.03em] text-white">
+              BY LAYER
+            </h3>
+            <p className="mt-3 max-w-[30ch] text-sm leading-6 text-neutral-500">
+              The tools I reach for most often, grouped by the part of the system they serve.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-x-6 gap-y-9 md:grid-cols-4 lg:col-span-9">
+            {STACK_GROUPS.map((group) => (
+              <div key={group.label}>
+                <p className="border-b border-white/[0.07] pb-3 font-mono text-[9px] uppercase tracking-[0.2em] text-neutral-500">
+                  {group.label}
+                </p>
+                <ul className="mt-4 space-y-2.5">
+                  {group.items.map((item) => (
+                    <li
+                      key={item}
+                      className="text-[13px] leading-5 text-neutral-400 transition-colors duration-300 hover:text-white"
+                    >
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </section>
   );
 };
 
 const Footer: React.FC = () => {
+  const year = new Date().getFullYear();
+
   return (
-    <footer className="py-12 relative z-10 border-t border-white/5 bg-black/80 backdrop-blur-sm text-center select-none cursor-default">
-      <div className="flex flex-col items-center gap-4">
-        <div className="text-white font-['Syncopate'] font-normal tracking-widest">SHABAAZ HUSSAIN</div>
-        <p className="text-neutral-600 text-xs font-mono tracking-widest uppercase">
-          Designed in the Void // © {new Date().getFullYear()}
-        </p>
+    <footer
+      id="contact"
+      className="relative z-10 scroll-mt-20 overflow-hidden border-t border-white/[0.07] bg-[#030303]/92 backdrop-blur-md"
+    >
+      <div
+        className="pointer-events-none absolute right-[-3rem] top-1/2 hidden w-[min(700px,52vw)] -translate-y-1/2 text-white/[0.045] lg:block"
+        aria-hidden="true"
+      >
+        <svg viewBox="0 0 200 100" fill="none" className="w-full">
+          <path
+            d="M100 50 C 72 18, 24 18, 24 50 C 24 82, 72 82, 100 50 C 128 18, 176 18, 176 50 C 176 82, 128 82, 100 50"
+            stroke="currentColor"
+            strokeWidth="0.8"
+          />
+        </svg>
+      </div>
+
+      <div className="container relative mx-auto px-6 pb-8 pt-24 md:px-12 md:pt-32">
+        <div className="grid gap-14 lg:grid-cols-12 lg:gap-16">
+          <div className="lg:col-span-7">
+            <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.28em] text-neutral-500">
+              <span className="h-px w-8 bg-white/25" />
+              Contact
+              <span className="text-neutral-600">/ 01</span>
+            </div>
+            <h2 className="mt-6 font-['Syncopate'] text-[clamp(2.55rem,7vw,5.5rem)] font-bold leading-[0.95] tracking-[-0.055em] text-white">
+              HAVE A HARD
+              <br />
+              PROBLEM<span className="text-neutral-600">?</span>
+            </h2>
+            <p className="mt-6 font-['Instrument_Serif'] text-[clamp(1.9rem,3.2vw,2.75rem)] italic leading-[1.1] text-neutral-300">
+              Good. That&apos;s the interesting part.
+            </p>
+            <p className="mt-6 max-w-[52ch] text-sm leading-7 text-neutral-400">
+              Send the workflow, the data, or the step that keeps failing. I&apos;ll tell you what it would take to make it dependable.
+            </p>
+
+            <a
+              href="mailto:studioinfinitys@gmail.com"
+              className="group mt-10 flex items-center justify-between gap-5 border-y border-white/[0.1] py-5 transition-colors duration-500 hover:border-white/25"
+            >
+              <span className="break-all font-mono text-[clamp(0.92rem,2.3vw,1.35rem)] tracking-[-0.02em] text-neutral-200 transition-colors duration-500 group-hover:text-white">
+                studioinfinitys@gmail.com
+              </span>
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 text-neutral-400 transition-all duration-500 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:border-white/25 group-hover:text-white">
+                <ArrowUpRight size={17} />
+              </span>
+            </a>
+          </div>
+
+          <div className="flex flex-col justify-between gap-12 border-t border-white/[0.07] pt-8 lg:col-span-5 lg:border-l lg:border-t-0 lg:pl-14 lg:pt-0">
+            <div>
+              <p className="font-mono text-[9px] uppercase tracking-[0.24em] text-neutral-600">
+                Currently building
+              </p>
+              <ul className="mt-5 space-y-4">
+                {[
+                  "Document intelligence for Arabic records",
+                  "LLM systems with evaluation built in",
+                  "Agents that leave a record of every step",
+                ].map((item) => (
+                  <li key={item} className="flex gap-3 text-sm leading-6 text-neutral-400">
+                    <span className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-neutral-600" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <p className="font-mono text-[9px] uppercase tracking-[0.24em] text-neutral-600">
+                Elsewhere
+              </p>
+              <div className="mt-4 border-t border-white/[0.07]">
+                {[
+                  { label: "GitHub", meta: "/redfries", href: "https://github.com/redfries" },
+                  { label: "LinkedIn", meta: "/in/redfries", href: "https://www.linkedin.com/in/redfries/" },
+                ].map((link) => (
+                  <a
+                    key={link.label}
+                    href={link.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex items-center justify-between gap-4 border-b border-white/[0.07] py-4 text-sm text-neutral-300 transition-colors duration-300 hover:text-white"
+                  >
+                    <span>{link.label}</span>
+                    <span className="flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.16em] text-neutral-600 transition-colors group-hover:text-neutral-400">
+                      {link.meta}
+                      <ArrowUpRight
+                        size={12}
+                        className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                      />
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-20 flex flex-col gap-5 border-t border-white/[0.07] pt-6 font-mono text-[9px] uppercase tracking-[0.2em] text-neutral-600 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <span className="text-neutral-300">Shabaaz Hussain</span>
+            <span className="hidden h-1 w-1 rounded-full bg-neutral-700 sm:block" />
+            <span>AI &amp; ML Engineer</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <span>&copy; {year} &middot; Designed in the void</span>
+            <a
+              href="#top"
+              className="group inline-flex items-center gap-1.5 transition-colors duration-300 hover:text-white"
+            >
+              Back to top
+              <ArrowUp
+                size={11}
+                className="transition-transform duration-300 group-hover:-translate-y-0.5"
+              />
+            </a>
+          </div>
+        </div>
       </div>
     </footer>
   );
@@ -737,7 +1116,7 @@ export default function App() {
   const figureRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div className="relative bg-black min-h-screen text-slate-200 selection:bg-white selection:text-black">
+    <div id="top" className="relative bg-black min-h-screen text-slate-200 selection:bg-white selection:text-black">
       {/* The page's whole background, in paint order, all of it fixed and
           viewport-sized at z-0 so every section (z-10) sits above it.
 
