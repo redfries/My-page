@@ -1,60 +1,94 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Github, Linkedin, Mail, ExternalLink, ArrowRight, ArrowDown, Briefcase, User, MessageSquare } from 'lucide-react';
+import {
+  Github,
+  Linkedin,
+  Mail,
+  ArrowDown,
+  ArrowRight,
+  ArrowUpRight,
+  Briefcase,
+  User,
+  MessageSquare,
+} from 'lucide-react';
 import TubesInfinity, { heroWarp, type HeroStatus } from './TubesInfinity';
 import Starfield from './Starfield';
 
 // --- Types ---
 interface Project {
-  id: number;
+  id: string;
   title: string;
   category: string;
+  tagline: string;
   description: string;
   tags: string[];
-  image: string;
-  link: string;
+  status: string;
+  accentColor: string;
+  links: {
+    live?: string;
+    github: string;
+  };
 }
 
 // --- Constants ---
 const PROJECTS: Project[] = [
   {
-    id: 1,
+    id: "reading-with-ai",
     title: "Reading with AI",
-    category: "RESEARCH",
-    description: "Personalized reading experience. Not every sentence deserves your time. Qwen AI research.",
-    tags: ["LLM", "NLP", "Qwen AI"],
-    image: "https://picsum.photos/600/400?random=1",
-    link: "https://infinitys.me/pre"
+    category: "Research / NLP",
+    tagline: "Read what matters.",
+    description: "A research reader that learns what you care about and ranks every passage in a paper against it. The signal rises; the noise recedes.",
+    tags: ["Qwen embeddings", "Semantic ranking", "FastAPI"],
+    status: "Live app",
+    accentColor: "#7dd3fc",
+    links: {
+      live: "https://infinitys.me/pre",
+      github: "https://github.com/redfries/personalized-reading-experience"
+    }
   },
   {
-    id: 2,
-    title: "Cheque OCR",
-    category: "COMPUTER VISION",
-    description: "End-to-end Arabic cheque field localization, OCR, and verification. Cascade R-CNN + CRNN + Qwen3.5 LoRA.",
-    tags: ["Detectron2", "PyTorch", "Qwen3.5"],
-    image: "https://picsum.photos/600/400?random=2",
-    link: "https://infinitys.me/ocr"
+    id: "arabic-cheque-ocr",
+    title: "Arabic Cheque OCR",
+    category: "Computer Vision",
+    tagline: "From pixels to a verified amount.",
+    description: "An end-to-end pipeline for Arabic cheques. It locates each field, reads the handwriting, and cross-checks the legal amount against the figures.",
+    tags: ["Cascade R-CNN", "TrOCR", "Qwen3.5 LoRA"],
+    status: "End-to-end system",
+    accentColor: "#86efac",
+    links: {
+      live: "https://infinitys.me/ocr",
+      github: "https://github.com/redfries/arabic-cheque-ocr"
+    }
   },
   {
-    id: 3,
-    title: "STARLIGHT",
-    category: "MOBILE AR",
-    description: "Cross-platform AR application for constellation identification.",
-    tags: ["React Native", "ARKit", "Expo"],
-    image: "https://picsum.photos/600/400?random=3",
-    link: "#"
+    id: "career-ops",
+    title: "Career-Ops",
+    category: "Agent Systems",
+    tagline: "A pipeline, not a conversation.",
+    description: "Job search automation with a state machine underneath. It ingests a role, maps the fit, tailors a two-page LaTeX resume, submits through the ATS, and leaves a receipt at every step.",
+    tags: ["Playwright", "SQLite", "Tectonic"],
+    status: "Open source",
+    accentColor: "#fdba74",
+    links: {
+      github: "https://github.com/redfries/career-ops-automation"
+    }
   },
   {
-    id: 4,
-    title: "QUANTUM API",
-    category: "BACKEND",
-    description: "Secure, high-velocity endpoints for quantum simulation clusters.",
-    tags: ["Go", "gRPC", "Kubernetes"],
-    image: "https://picsum.photos/600/400?random=4",
-    link: "#"
+    id: "paper2tex",
+    title: "paper2tex",
+    category: "Developer Tooling",
+    tagline: "Your words. Your equations. Intact.",
+    description: "An agent skill that turns Word manuscripts into conference-ready LaTeX. Math comes straight from OMML, figures are straightened and scaled, and the compiler repairs its own missing packages.",
+    tags: ["Python", "Pandoc", "OMML → LaTeX"],
+    status: "Agent skill",
+    accentColor: "#c4b5fd",
+    links: {
+      github: "https://github.com/redfries/paper2tex"
+    }
   }
 ];
 
 // --- Components ---
+
 
 /**
  * ParticleGrid Component
@@ -258,40 +292,206 @@ const Header: React.FC = () => {
   );
 };
 
-const ProjectCard: React.FC<{ project: Project }> = ({ project }) => {
-  return (
-    <a href={project.link} target={project.link.startsWith('http') ? "_blank" : "_self"} rel="noreferrer" className="group cred-card relative overflow-hidden h-[400px] flex flex-col justify-end p-8 md:p-10 cursor-pointer">
-      {/* Background Image that reveals on hover */}
-      <div className="absolute inset-0 opacity-0 group-hover:opacity-40 transition-opacity duration-700 ease-out z-0">
-        <img 
-          src={project.image} 
-          alt={project.title} 
-          className="w-full h-full object-cover grayscale mix-blend-luminosity scale-105 group-hover:scale-100 transition-transform duration-700" 
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent" />
-      </div>
+const ProjectFrame: React.FC<{ accentColor: string; children: React.ReactNode }> = ({ accentColor, children }) => (
+  <div className="relative h-[228px] shrink-0 overflow-hidden border-b border-white/[0.06] bg-[#050505] sm:h-[258px]">
+    <div className="showcase-grid absolute inset-0 opacity-60" />
+    <div
+      className="absolute inset-0"
+      style={{ background: `radial-gradient(90% 80% at 50% 115%, ${accentColor}14, transparent 65%)` }}
+    />
+    {children}
+  </div>
+);
 
-      <div className="relative z-10 space-y-4">
-        <div className="flex justify-between items-end border-b border-white/20 pb-4 mb-4 translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
-           <div>
-             <span className="text-xs font-bold text-neutral-500 tracking-widest uppercase mb-1 block">{project.category}</span>
-             <h3 className="text-3xl font-bold text-white tracking-tight font-['Syncopate']">
-               {project.title}
-             </h3>
-           </div>
-           <ArrowRight className="text-white opacity-0 group-hover:opacity-100 -translate-x-4 group-hover:translate-x-0 transition-all duration-500" />
+const ReadingVisual: React.FC = () => (
+  <ProjectFrame accentColor="#7dd3fc">
+    <div className="absolute inset-0 flex items-center justify-center px-7 pb-6 pt-7">
+      <div className="relative w-full max-w-[360px] rounded-[3px] border border-white/[0.09] bg-[#0b0c0f]/95 px-6 py-5 shadow-[0_24px_50px_-20px_rgba(0,0,0,0.9)] transition-transform duration-700 group-hover:-translate-y-1.5">
+        <div className="flex items-center justify-between font-mono text-[8px] uppercase tracking-[0.2em] text-neutral-600">
+          <span>ARXIV / 2603.0142</span>
+          <span>12 / 28</span>
         </div>
-        
-        <p className="text-neutral-400 text-sm leading-relaxed max-w-sm opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-500 delay-100">
-          {project.description}
-        </p>
+        <div className="mt-5 h-[7px] w-[82%] rounded-full bg-white/20" />
+        <div className="mt-2 h-[5px] w-[54%] rounded-full bg-white/10" />
+        <div className="mt-5 space-y-[7px]">
+          <div className="h-[3px] w-full rounded-full bg-white/[0.07]" />
+          <div className="h-[3px] w-[91%] rounded-full bg-white/[0.07]" />
+          <div className="h-[3px] w-[76%] rounded-full bg-white/[0.07]" />
+        </div>
+        <div className="relative mt-4 overflow-hidden rounded-r-sm border-l-2 bg-sky-300/[0.06] py-2.5 pl-3 pr-2" style={{ borderColor: '#7dd3fc' }}>
+          <p className="font-['Instrument_Serif'] text-[12px] italic leading-snug text-sky-100/90">The useful signal is often one paragraph deep.</p>
+          <div className="mt-2 h-[3px] w-[88%] rounded-full bg-sky-200/20" />
+          <div className="mt-1.5 h-[3px] w-[64%] rounded-full bg-sky-200/10" />
+        </div>
+        <div className="mt-4 space-y-[7px]">
+          <div className="h-[3px] w-[84%] rounded-full bg-white/[0.06]" />
+          <div className="h-[3px] w-[69%] rounded-full bg-white/[0.06]" />
+        </div>
+      </div>
+    </div>
+  </ProjectFrame>
+);
 
-        <div className="flex gap-3 pt-2 opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-500 delay-200">
-          {project.tags.map((tag, i) => (
-            <span key={i} className="text-[10px] font-mono border border-white/20 px-2 py-1 text-white/80 uppercase">
+const OcrVisual: React.FC = () => (
+  <ProjectFrame accentColor="#86efac">
+    <div className="absolute inset-0 flex items-center justify-center px-6 pb-6 pt-7">
+      <div className="relative w-full max-w-[350px] -rotate-1 rounded-[3px] bg-[#e9e4d8] px-6 py-5 text-[#24211b] shadow-[0_24px_55px_-18px_rgba(0,0,0,0.85)] transition-transform duration-700 group-hover:rotate-0">
+        <div className="flex items-start justify-between border-b border-black/15 pb-2 font-mono text-[7px] uppercase tracking-[0.22em] text-black/45">
+          <span>Al Rajhi Bank</span>
+          <span>Cheque / 048291</span>
+        </div>
+        <div className="mt-3 flex items-start justify-between gap-5">
+          <div className="relative border border-emerald-600/65 px-1.5 py-1">
+            <span className="absolute -top-[9px] left-0 bg-emerald-700 px-1 font-mono text-[6px] leading-[11px] text-white">PAYEE</span>
+            <p className="text-[12px] font-semibold">Advanced Technology Co.</p>
+          </div>
+          <div className="relative border border-emerald-600/65 px-1.5 py-1 text-right" dir="rtl">
+            <span className="absolute -top-[9px] left-0 bg-emerald-700 px-1 font-mono text-[6px] leading-[11px] text-white">LEGAL AMOUNT</span>
+            <p className="text-[11px]">خمسة وأربعون ألف ريال</p>
+          </div>
+        </div>
+        <div className="mt-5 flex items-end justify-between gap-4">
+          <div className="relative border border-emerald-600/65 px-1.5 py-1">
+            <span className="absolute -top-[9px] left-0 bg-emerald-700 px-1 font-mono text-[6px] leading-[11px] text-white">AMOUNT</span>
+            <p className="font-mono text-[19px] font-semibold tracking-tight">SAR 45,000.00</p>
+          </div>
+          <svg viewBox="0 0 72 26" className="mb-1 h-6 w-16 text-black/40" fill="none" aria-hidden="true">
+            <path d="M2 17c8-10 13 4 21-4 7-7 9 8 17 1 6-6 9 5 14-2 4-5 7 2 16 1" stroke="currentColor" strokeLinecap="round" strokeWidth="1.2" />
+          </svg>
+        </div>
+        <div className="absolute inset-x-0 top-0 h-px bg-emerald-400/50 opacity-0 shadow-[0_0_10px_rgba(52,211,153,0.7)] transition-all duration-[1200ms] group-hover:top-full group-hover:opacity-100" />
+      </div>
+    </div>
+  </ProjectFrame>
+);
+
+const CareerOpsVisual: React.FC = () => (
+  <ProjectFrame accentColor="#fdba74">
+    <div className="absolute inset-0 flex items-center px-8">
+      <div className="w-full max-w-[330px]">
+        <div className="mb-5 flex items-center justify-between font-mono text-[8px] uppercase tracking-[0.22em] text-neutral-600">
+          <span>Stateful pipeline</span>
+          <span>04 stages</span>
+        </div>
+        <div className="relative space-y-3 pl-6">
+          <div className="absolute bottom-1 left-[2px] top-1 w-px bg-white/10" />
+          <div className="absolute bottom-1 left-[2px] top-1 w-px origin-top scale-y-0 bg-amber-300/70 transition-transform duration-1000 group-hover:scale-y-100" />
+          {[
+            ['01', 'Ingest role', 'parsed'],
+            ['02', 'Tailor resume', 'tailored'],
+            ['03', 'Verify fields', 'verified'],
+            ['04', 'Submit + outreach', 'receipt'],
+          ].map(([number, label, state], i) => (
+            <div key={number} className="relative flex items-center justify-between">
+              <span className={`absolute -left-6 h-[5px] w-[5px] rounded-full border ${i === 3 ? 'border-amber-300 bg-amber-300/30' : 'border-white/25 bg-[#090807]'}`} />
+              <div className="flex items-baseline gap-3">
+                <span className="font-mono text-[8px] text-neutral-600">{number}</span>
+                <span className="text-[11px] text-neutral-300">{label}</span>
+              </div>
+              <span className="font-mono text-[8px] text-neutral-600">{state}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 flex items-center justify-between rounded-md border border-white/[0.06] bg-white/[0.015] px-3 py-2 font-mono text-[8px] text-neutral-500">
+          <span>resume.pdf</span>
+          <span className="text-amber-200/80">2 pages · receipt saved</span>
+        </div>
+      </div>
+    </div>
+  </ProjectFrame>
+);
+
+const Paper2TexVisual: React.FC = () => (
+  <ProjectFrame accentColor="#c4b5fd">
+    <div className="absolute inset-0 flex items-center justify-center gap-3 px-6 pb-5 pt-6">
+      <div className="w-[42%] -rotate-1 rounded-[2px] bg-[#e9e6dd] p-4 text-[#28251f] shadow-[0_18px_40px_-16px_rgba(0,0,0,0.8)] transition-transform duration-700 group-hover:-translate-x-1 group-hover:rotate-0">
+        <div className="font-mono text-[6px] uppercase tracking-[0.2em] text-black/40">Manuscript.docx</div>
+        <div className="mt-3 font-['Instrument_Serif'] text-[13px] leading-tight">Attention is all you need</div>
+        <div className="mt-2 space-y-1">
+          <div className="h-[2px] w-full bg-black/15" />
+          <div className="h-[2px] w-[88%] bg-black/10" />
+          <div className="h-[2px] w-[72%] bg-black/10" />
+        </div>
+        <div className="mt-3 rounded-sm bg-black/[0.04] px-2 py-1 text-center font-['Instrument_Serif'] text-[12px] italic">E = mc²</div>
+      </div>
+      <div className="flex shrink-0 flex-col items-center gap-1 text-violet-300/60">
+        <span className="font-mono text-[6px] uppercase tracking-[0.18em]">OMML</span>
+        <ArrowRight size={12} className="transition-transform duration-700 group-hover:translate-x-1" />
+      </div>
+      <div className="w-[48%] rounded-[2px] border border-violet-300/20 bg-[#09060d] p-3 font-mono text-[8px] leading-relaxed text-neutral-400 shadow-[0_18px_45px_-16px_rgba(0,0,0,0.9)] transition-transform duration-700 group-hover:translate-x-1">
+        <div className="text-violet-300/80">{"\\documentclass{IEEEtran}"}</div>
+        <div className="text-neutral-600">{"\\begin{document}"}</div>
+        <div className="text-neutral-300 truncate">{"\\title{Attention...}"}</div>
+        <div className="text-violet-200">{"$E = mc^2$"}</div>
+        <div className="text-neutral-600">{"\\end{document}"}</div>
+      </div>
+    </div>
+  </ProjectFrame>
+);
+
+const ProjectVisual: React.FC<{ projectId: string }> = ({ projectId }) => {
+  switch (projectId) {
+    case 'reading-with-ai':
+      return <ReadingVisual />;
+    case 'arabic-cheque-ocr':
+      return <OcrVisual />;
+    case 'career-ops':
+      return <CareerOpsVisual />;
+    case 'paper2tex':
+      return <Paper2TexVisual />;
+    default:
+      return null;
+  }
+};
+
+const ProjectCard: React.FC<{ project: Project; index: number }> = ({ project, index }) => {
+  const href = project.links.live ?? project.links.github;
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={`Open ${project.title}`}
+      className="showcase-card group relative flex h-full flex-col overflow-hidden rounded-[20px] border border-white/[0.08] bg-[#070707]/85 backdrop-blur-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/40"
+    >
+      <div
+        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-700 group-hover:opacity-100"
+        style={{ background: `radial-gradient(70% 48% at 18% 0%, ${project.accentColor}14, transparent 72%)` }}
+      />
+      <ProjectVisual projectId={project.id} />
+
+      <div className="relative flex flex-1 flex-col p-6 md:p-7">
+        <div className="flex items-center justify-between gap-4">
+          <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-neutral-500">
+            {String(index + 1).padStart(2, '0')} / {project.category}
+          </span>
+          <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-neutral-500">{project.status}</span>
+        </div>
+
+        <h3 className="mt-5 font-['Syncopate'] text-[clamp(1.3rem,2.2vw,1.8rem)] font-bold leading-[1.15] tracking-tight text-white">
+          {project.title}
+        </h3>
+        <p className="mt-3 max-w-[54ch] text-sm leading-relaxed text-neutral-400">{project.description}</p>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          {project.tags.map(tag => (
+            <span
+              key={tag}
+              className="rounded-full border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 font-mono text-[10px] tracking-wide text-neutral-500 transition-colors duration-500 group-hover:border-white/[0.14] group-hover:text-neutral-400"
+            >
               {tag}
             </span>
           ))}
+        </div>
+
+        <div className="mt-auto flex items-end justify-between gap-5 pt-7">
+          <p className="font-['Instrument_Serif'] text-[19px] italic leading-snug text-neutral-500 transition-colors duration-500 group-hover:text-neutral-300">
+            {project.tagline}
+          </p>
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 text-neutral-400 transition-all duration-500 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:border-white/25 group-hover:text-white">
+            <ArrowUpRight size={15} />
+          </span>
         </div>
       </div>
     </a>
@@ -393,21 +593,65 @@ const MainHero: React.FC<{
 
 const ProjectsSection: React.FC = () => {
   return (
-    <section id="projects" className="py-32 relative z-10 select-none cursor-default">
+    <section id="projects" className="relative z-10 select-none py-24 md:py-36 cursor-default">
       <div className="container mx-auto px-6 md:px-12">
-        <div className="flex flex-col md:flex-row items-end justify-between mb-20 pb-6 border-b border-white/10 gap-6">
-          <h2 className="text-5xl md:text-7xl font-bold text-white font-['Syncopate'] tracking-tighter opacity-90">
-            WORKS
-          </h2>
-          <span className="text-neutral-500 font-mono text-sm tracking-widest mb-2">
-            PROJECTS
-          </span>
+        <div className="grid gap-8 border-b border-white/10 pb-8 lg:grid-cols-12 lg:items-end">
+          <div className="lg:col-span-7">
+            <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.28em] text-neutral-500">
+              <span className="h-px w-8 bg-white/25" />
+              Selected work
+              <span className="text-neutral-600">/ 04</span>
+            </div>
+            <h2 className="mt-5 font-['Syncopate'] text-[clamp(2.75rem,7vw,5.5rem)] font-bold leading-[0.95] tracking-[-0.06em] text-white">
+              WORKS
+            </h2>
+          </div>
+
+          <div className="lg:col-span-5 lg:max-w-[360px] lg:justify-self-end">
+            <p className="font-['Instrument_Serif'] text-2xl italic leading-tight text-neutral-300 md:text-[28px]">
+              Research, vision, and systems that earn their place.
+            </p>
+            <p className="mt-4 text-sm leading-relaxed text-neutral-500">
+              Four projects built around real problems — from reading a paper to verifying a cheque to shipping an application end to end.
+            </p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {PROJECTS.map(project => (
-            <ProjectCard key={project.id} project={project} />
-          ))}
+        <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 font-mono text-[9px] uppercase tracking-[0.22em] text-neutral-500">
+          <span>Research / NLP</span>
+          <span>Computer Vision</span>
+          <span>Agent Systems</span>
+          <span>Developer Tooling</span>
+        </div>
+
+        <div className="mt-10 grid grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-12">
+          <div className="h-full lg:col-span-1 xl:col-span-7">
+            <ProjectCard project={PROJECTS[0]} index={0} />
+          </div>
+          <div className="h-full lg:col-span-1 xl:col-span-5">
+            <ProjectCard project={PROJECTS[1]} index={1} />
+          </div>
+          <div className="h-full lg:col-span-1 xl:col-span-5">
+            <ProjectCard project={PROJECTS[2]} index={2} />
+          </div>
+          <div className="h-full lg:col-span-1 xl:col-span-7">
+            <ProjectCard project={PROJECTS[3]} index={3} />
+          </div>
+        </div>
+
+        <div className="mt-8 flex flex-col gap-4 border-t border-white/[0.06] pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-500">
+            Selected projects · four systems
+          </p>
+          <a
+            href="https://github.com/redfries"
+            target="_blank"
+            rel="noreferrer"
+            className="group flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-500 transition-colors hover:text-white"
+          >
+            More on GitHub
+            <ArrowUpRight size={13} className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+          </a>
         </div>
       </div>
     </section>

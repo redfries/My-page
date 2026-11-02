@@ -10,6 +10,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
     <style>
       body {
         font-family: 'Space Grotesk', sans-serif;
@@ -32,16 +33,6 @@
       }
       ::-webkit-scrollbar-thumb:hover {
         background: #555;
-      }
-      .cred-card {
-        background: #0a0a0a;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-      }
-      .cred-card:hover {
-        border-color: rgba(255, 255, 255, 0.3);
-        transform: translateY(-5px);
-        box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5);
       }
       .infinity-path {
         stroke-dasharray: 1000;
@@ -100,6 +91,31 @@
         .animate-fade-in {
           animation: none;
           opacity: 1;
+          transform: none;
+        }
+      }
+      .showcase-grid {
+        background-image:
+          linear-gradient(rgba(255,255,255,0.032) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.032) 1px, transparent 1px);
+        background-size: 28px 28px;
+        -webkit-mask-image: radial-gradient(82% 90% at 50% 50%, #000 18%, transparent 100%);
+        mask-image: radial-gradient(82% 90% at 50% 50%, #000 18%, transparent 100%);
+      }
+      .showcase-card {
+        transition:
+          transform 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+          border-color 0.55s ease,
+          box-shadow 0.55s ease;
+      }
+      .showcase-card:hover {
+        transform: translateY(-4px);
+        border-color: rgba(255,255,255,0.16);
+        box-shadow: 0 26px 65px -28px rgba(0,0,0,0.95);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .showcase-card,
+        .showcase-card:hover {
           transform: none;
         }
       }

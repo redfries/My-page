@@ -76,11 +76,13 @@ Shabaaz-Portfolio/
      - **Licence.** The tubes engine is CC BY-NC-SA 4.0 by Kevin Levron — attribution required, non-commercial only. Reference material and the original snippet live in `inspiration/`.
   5. **Specializations**: Focus areas in **Machine Learning**, **LLMs**, **NLP**, and **AI System R&D**.
   6. **Tech Stack**: Categorized badges covering Python/PyTorch/TensorFlow, React/TypeScript/Next.js, Node.js/FastAPI/SQL, and LangChain/Hugging Face.
-  7. **Projects Grid**: Dynamic project cards highlighting:
-     - **Reading with AI** (`https://infinitys.me/pre`)
-     - **Arabic Cheque OCR** (`https://infinitys.me/ocr`)
-     - **Starlight Mobile AR**
-     - **Quantum API**
+  7. **Projects Grid** (`ProjectsSection` / `PROJECTS`): an editorial four-project showcase in an asymmetric bento grid. Cards are fully clickable and use hand-built CSS/SVG previews rather than stock imagery.
+     - **Reading with AI** (`https://infinitys.me/pre`) — research/NLP, live app
+     - **Arabic Cheque OCR** (`https://infinitys.me/ocr`) — computer vision, live system
+     - **Career-Ops** (`https://github.com/redfries/career-ops-automation`) — agent systems, source repo
+     - **paper2tex** (`https://github.com/redfries/paper2tex`) — developer tooling, source repo
+
+     `PROJECTS` is the source of truth. `links.github` is required; add `links.live` when a project has its own deployed site. The grid is 7/5 and 5/7 at `xl`, two equal columns at `lg`, and one column below `lg`.
   8. **Social & Contact**: Links to GitHub (`https://github.com/redfries`), LinkedIn (`https://www.linkedin.com/in/redfries/`), and Email (`studioinfinitys@gmail.com`).
 
 ---
