@@ -406,11 +406,11 @@ const Header: React.FC = () => {
 };
 
 const ProjectFrame: React.FC<{ accentColor: string; children: React.ReactNode }> = ({ accentColor, children }) => (
-  <div className="absolute inset-0 overflow-hidden bg-[#050505]">
+  <div className="absolute inset-0 overflow-hidden bg-[#050508]/78">
     <div className="showcase-grid absolute inset-0 opacity-60" />
     <div
       className="absolute inset-0"
-      style={{ background: `radial-gradient(90% 80% at 50% 115%, ${accentColor}14, transparent 65%)` }}
+      style={{ background: `radial-gradient(90% 80% at 50% 115%, ${accentColor}1f, transparent 65%)` }}
     />
     {children}
   </div>
@@ -577,7 +577,7 @@ const ProjectVideo: React.FC<{ project: Project }> = ({ project }) => {
   if (!project.preview) return null;
 
   return (
-    <div className="absolute inset-0 bg-[#050505]">
+    <div className="absolute inset-0 bg-[#050508]/78">
       <div className="showcase-grid absolute inset-0 opacity-30" />
       <video
         className="relative h-full w-full object-contain"
@@ -612,11 +612,13 @@ const ProjectCard: React.FC<{ project: Project; index: number }> = ({ project, i
       target="_blank"
       rel="noreferrer"
       aria-label={`${linkLabel}: ${project.title}`}
-      className="showcase-card group relative grid overflow-hidden rounded-[22px] border border-white/[0.08] bg-[#070707]/90 backdrop-blur-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/40 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]"
+      data-illuminate-card={`project-${project.id}`}
+      data-accent-color={project.accentColor}
+      className="showcase-card illuminated-card group relative grid overflow-hidden rounded-[22px] border border-white/[0.08] bg-[#07080c]/86 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/40 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]"
     >
       <div
         className="pointer-events-none absolute inset-0 z-20 opacity-0 transition-opacity duration-700 group-hover:opacity-100"
-        style={{ background: `radial-gradient(65% 55% at 16% 12%, ${project.accentColor}12, transparent 72%)` }}
+        style={{ background: `radial-gradient(65% 55% at 16% 12%, ${project.accentColor}16, transparent 72%)` }}
       />
 
       <div className="relative min-h-[260px] overflow-hidden border-b border-white/[0.07] sm:min-h-[320px] lg:min-h-[440px] lg:border-b-0 lg:border-r">
@@ -624,13 +626,13 @@ const ProjectCard: React.FC<{ project: Project; index: number }> = ({ project, i
       </div>
 
       <div className="relative z-10 flex flex-col p-7 md:p-9 lg:p-10 xl:p-11">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] pb-5 font-mono text-[9px] uppercase tracking-[0.2em] text-neutral-500">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] pb-5 font-mono text-[9px] uppercase tracking-[0.2em] text-neutral-400">
           <div className="flex items-center gap-3">
-            <span className="text-neutral-300">{String(index + 1).padStart(2, '0')}</span>
+            <span className="text-neutral-200">{String(index + 1).padStart(2, '0')}</span>
             <span className="h-px w-5 bg-white/15" />
             <span>{project.category}</span>
           </div>
-          <span className="rounded-full border border-white/[0.08] px-2.5 py-1 tracking-[0.14em] text-neutral-400">
+          <span className="rounded-full border border-white/[0.1] px-2.5 py-1 tracking-[0.14em] text-neutral-300">
             {project.status}
           </span>
         </div>
@@ -638,19 +640,19 @@ const ProjectCard: React.FC<{ project: Project; index: number }> = ({ project, i
         <h3 className="mt-7 font-['Syncopate'] text-[clamp(1.55rem,3vw,2.35rem)] font-bold leading-[1.08] tracking-[-0.035em] text-white">
           {project.title}
         </h3>
-        <p className="mt-4 font-['Instrument_Serif'] text-[clamp(1.25rem,2vw,1.55rem)] italic leading-[1.25] text-neutral-200">
+        <p className="mt-4 font-['Instrument_Serif'] text-[clamp(1.25rem,2vw,1.55rem)] italic leading-[1.25] text-neutral-100">
           {project.tagline}
         </p>
-        <p className="mt-5 max-w-[56ch] text-[15px] leading-7 text-neutral-400">
+        <p className="card-readable-copy mt-5 max-w-[56ch] text-[15px] leading-7 text-neutral-300 transition-colors duration-300">
           {project.description}
         </p>
 
         <div className="mt-7 border-t border-white/[0.07] pt-5">
-          <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-neutral-600">How it works</p>
+          <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-neutral-500">How it works</p>
           <ol className="mt-4 space-y-3">
             {project.steps.map((step, stepIndex) => (
-              <li key={step} className="flex gap-3 text-[13px] leading-5 text-neutral-400">
-                <span className="mt-0.5 font-mono text-[9px] text-neutral-600">0{stepIndex + 1}</span>
+              <li key={step} className="card-readable-step flex gap-3 text-[13px] leading-5 text-neutral-300 transition-colors duration-300">
+                <span className="mt-0.5 font-mono text-[9px] text-neutral-500">0{stepIndex + 1}</span>
                 <span>{step}</span>
               </li>
             ))}
@@ -659,17 +661,17 @@ const ProjectCard: React.FC<{ project: Project; index: number }> = ({ project, i
 
         <div className="mt-6 flex flex-wrap gap-2">
           {project.tags.map(tag => (
-            <span key={tag} className="rounded-full border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 font-mono text-[10px] tracking-wide text-neutral-500 transition-colors duration-500 group-hover:border-white/[0.14] group-hover:text-neutral-400">
+            <span key={tag} className="rounded-full border border-white/[0.09] bg-white/[0.03] px-2.5 py-1 font-mono text-[10px] tracking-wide text-neutral-300 transition-colors duration-500 group-hover:border-white/[0.18] group-hover:text-white">
               {tag}
             </span>
           ))}
         </div>
 
         <div className="mt-auto flex items-center justify-between gap-5 pt-8">
-          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-500 transition-colors duration-500 group-hover:text-neutral-300">
+          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-400 transition-colors duration-500 group-hover:text-white">
             {linkLabel}
           </span>
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 text-neutral-400 transition-all duration-500 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:border-white/25 group-hover:text-white">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 text-neutral-300 transition-all duration-500 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:border-white/25 group-hover:text-white">
             <ArrowUpRight size={16} />
           </span>
         </div>
@@ -700,28 +702,13 @@ const InfinitySymbol: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-/**
- * The hero is one centred column: heading, a spacer that reserves exactly the
- * box the figure can occupy, then the rest of the text. The 3D scene publishes
- * that box as --infinity-h (its static extents plus the reach of the idle
- * drift) and centres its camera on the spacer, so the figure and the text agree
- * on where the middle is by construction.
- *
- * Both text blocks used to be pinned to the section's own centre line with a
- * fixed clearance instead. That assumed three things that were not true: that
- * the reserved height covered the drift (it was the static height, so the loop
- * swung ~13px past it on a phone and ~50px on a desktop, into an 8px gap), that
- * the canvas and the section share a centre line (the canvas is viewport-sized
- * and the section is 100svh, which differ by the mobile URL bar), and that the
- * measurement arrives before first paint (it came from inside the Three.js
- * import, so the text jumped when it landed).
- */
 const MainHero: React.FC<{
   status: HeroStatus;
   figureRef: React.RefObject<HTMLDivElement | null>;
 }> = ({ status, figureRef }) => {
   return (
     <section
+      id="hero-section"
       className="relative min-h-screen z-10 overflow-hidden select-none cursor-default"
       style={{ minHeight: '100svh' }}
     >
@@ -737,6 +724,7 @@ const MainHero: React.FC<{
             the SVG fallback fills it and sizes it itself. */}
         <div
           ref={figureRef}
+          data-testid="hero-infinity-anchor"
           className="w-full flex items-center justify-center mb-[clamp(12px,1.8vh,26px)]"
           style={status === 'failed' ? undefined : { height: 'var(--infinity-h, 260px)' }}
         >
@@ -777,10 +765,10 @@ const ProjectsSection: React.FC = () => {
       <div className="container mx-auto px-6 md:px-12">
         <div className="grid gap-8 border-b border-white/10 pb-8 lg:grid-cols-12 lg:items-end">
           <div className="lg:col-span-7">
-            <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.28em] text-neutral-500">
+            <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.28em] text-neutral-400">
               <span className="h-px w-8 bg-white/25" />
               Selected work
-              <span className="text-neutral-600">/ 04</span>
+              <span className="text-neutral-500">/ 04</span>
             </div>
             <h2 className="mt-5 font-['Syncopate'] text-[clamp(2.75rem,7vw,5.5rem)] font-bold leading-[0.95] tracking-[-0.06em] text-white">
               AI SYSTEMS
@@ -791,13 +779,13 @@ const ProjectsSection: React.FC = () => {
             <p className="font-['Instrument_Serif'] text-2xl italic leading-tight text-neutral-200 md:text-[30px]">
               Model training, LLM systems, and agents built for real work.
             </p>
-            <p className="mt-4 text-sm leading-6 text-neutral-500">
+            <p className="mt-4 text-sm leading-6 text-neutral-400">
               I start with a difficult workflow, train or connect the right models, and build the system around them so it can be used in practice.
             </p>
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[9px] uppercase tracking-[0.22em] text-neutral-500">
+        <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[9px] uppercase tracking-[0.22em] text-neutral-400">
           <span>Model training</span>
           <span className="h-1 w-1 rounded-full bg-neutral-700" />
           <span>LLM systems</span>
@@ -807,20 +795,18 @@ const ProjectsSection: React.FC = () => {
           <span>Applied automation</span>
         </div>
 
-        <div className="mt-10 space-y-5">
+        <div className="mt-10 space-y-6">
           {PROJECTS.map((project, index) => (
             <ProjectCard key={project.id} project={project} index={index} />
           ))}
         </div>
 
         <div className="mt-8 flex flex-col items-end border-t border-white/[0.06] pt-6 sm:flex-row sm:items-center sm:justify-end">
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-500">
-          </p>
           <a
             href="https://github.com/redfries"
             target="_blank"
             rel="noreferrer"
-            className="group flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-500 transition-colors hover:text-white"
+            className="group flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-400 transition-colors hover:text-white"
           >
             More on GitHub
             <ArrowUpRight size={13} className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
@@ -834,11 +820,13 @@ const ProjectsSection: React.FC = () => {
 const CapabilityRow: React.FC<{ capability: Capability; index: number }> = ({ capability, index }) => (
   <article
     id={capability.id}
-    className="group scroll-mt-24 border-b border-white/[0.07] transition-colors duration-500 hover:bg-white/[0.018]"
+    data-illuminate-card={capability.id}
+    data-accent-color={capability.accent}
+    className="illuminated-card group scroll-mt-24 overflow-hidden rounded-[20px] border border-white/[0.08] bg-[#07080c]/86 px-6 transition-colors duration-500 md:px-9"
   >
-    <div className="grid gap-6 py-9 md:grid-cols-12 md:gap-8 md:py-11">
+    <div className="relative z-10 grid gap-6 py-8 md:grid-cols-12 md:gap-8 md:py-10">
       <div className="flex items-center gap-4 md:col-span-1 md:items-start">
-        <span className="font-mono text-[10px] tracking-[0.2em] text-neutral-600">
+        <span className="font-mono text-[10px] tracking-[0.2em] text-neutral-400">
           0{index + 1}
         </span>
         <span className="h-px w-6 bg-white/10 md:hidden" />
@@ -854,10 +842,10 @@ const CapabilityRow: React.FC<{ capability: Capability; index: number }> = ({ ca
             {capability.title}
           </h3>
         </div>
-        <p className="mt-4 max-w-[46ch] font-['Instrument_Serif'] text-[clamp(1.22rem,1.9vw,1.5rem)] italic leading-[1.3] text-neutral-200">
+        <p className="mt-4 max-w-[46ch] font-['Instrument_Serif'] text-[clamp(1.22rem,1.9vw,1.5rem)] italic leading-[1.3] text-neutral-100">
           {capability.summary}
         </p>
-        <p className="mt-3 max-w-[52ch] text-sm leading-6 text-neutral-500">
+        <p className="card-readable-copy mt-3 max-w-[52ch] text-sm leading-6 text-neutral-300 transition-colors duration-300">
           {capability.detail}
         </p>
       </div>
@@ -867,14 +855,14 @@ const CapabilityRow: React.FC<{ capability: Capability; index: number }> = ({ ca
           {capability.tools.map((tool) => (
             <span
               key={tool}
-              className="rounded-full border border-white/[0.07] bg-white/[0.02] px-2.5 py-1 font-mono text-[10px] tracking-wide text-neutral-500 transition-colors duration-500 group-hover:border-white/[0.13] group-hover:text-neutral-300"
+              className="rounded-full border border-white/[0.09] bg-white/[0.03] px-2.5 py-1 font-mono text-[10px] tracking-wide text-neutral-300 transition-colors duration-500 group-hover:border-white/[0.16] group-hover:text-white"
             >
               {tool}
             </span>
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/[0.06] pt-4 font-mono text-[9px] uppercase tracking-[0.18em] text-neutral-600">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/[0.07] pt-4 font-mono text-[9px] uppercase tracking-[0.18em] text-neutral-400">
           <span>Built in</span>
           {capability.evidence.map((item) => (
             <a
@@ -882,7 +870,7 @@ const CapabilityRow: React.FC<{ capability: Capability; index: number }> = ({ ca
               href={item.href}
               target="_blank"
               rel="noreferrer"
-              className="group/link inline-flex items-center gap-1.5 text-neutral-400 transition-colors hover:text-white"
+              className="group/link inline-flex items-center gap-1.5 text-neutral-300 transition-colors hover:text-white"
             >
               {item.label}
               <ArrowUpRight
@@ -897,19 +885,21 @@ const CapabilityRow: React.FC<{ capability: Capability; index: number }> = ({ ca
   </article>
 );
 
+const TOOLKIT_ACCENTS = ['#7dd3fc', '#c4b5fd', '#86efac', '#fdba74'];
+
 const AboutSection: React.FC = () => {
   return (
     <section
       id="about"
-      className="relative z-10 scroll-mt-20 border-t border-white/[0.06] bg-[#050505]/75 py-24 backdrop-blur-sm select-none cursor-default md:py-32"
+      className="relative z-10 scroll-mt-20 border-t border-white/[0.06] py-24 select-none cursor-default md:py-32"
     >
       <div className="container mx-auto px-6 md:px-12">
         <div className="grid gap-8 lg:grid-cols-12 lg:items-end">
           <div className="lg:col-span-7">
-            <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.28em] text-neutral-500">
+            <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.28em] text-neutral-400">
               <span className="h-px w-8 bg-white/25" />
               Capabilities
-              <span className="text-neutral-600">/ 04</span>
+              <span className="text-neutral-500">/ 04</span>
             </div>
             <h2 className="mt-5 font-['Syncopate'] text-[clamp(2.6rem,6.6vw,5.5rem)] font-bold leading-[0.95] tracking-[-0.06em] text-white">
               FROM MODEL
@@ -922,13 +912,13 @@ const AboutSection: React.FC = () => {
             <p className="font-['Instrument_Serif'] text-2xl italic leading-tight text-neutral-200 md:text-[30px]">
               The model is one part. The system around it is the job.
             </p>
-            <p className="mt-4 text-sm leading-6 text-neutral-500">
+            <p className="mt-4 text-sm leading-6 text-neutral-400">
               I work across data, training, evaluation, and delivery, usually on workflows where a wrong answer has a cost. These are the four areas where most of that work happens.
             </p>
           </div>
         </div>
 
-        <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[9px] uppercase tracking-[0.2em] text-neutral-500">
+        <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[9px] uppercase tracking-[0.2em] text-neutral-400">
           {["Machine learning", "LLM systems", "Model training", "Computer vision", "NLP", "Agents"].map((area, index) => (
             <span key={area} className="flex items-center gap-4">
               {index > 0 && <span className="h-1 w-1 rounded-full bg-neutral-700" />}
@@ -937,7 +927,7 @@ const AboutSection: React.FC = () => {
           ))}
         </div>
 
-        <div className="mt-10 border-t border-white/[0.08] md:mt-14">
+        <div className="mt-10 space-y-4 md:mt-14">
           {CAPABILITIES.map((capability, index) => (
             <CapabilityRow key={capability.id} capability={capability} index={index} />
           ))}
@@ -945,34 +935,41 @@ const AboutSection: React.FC = () => {
 
         <div className="mt-16 grid gap-10 border-t border-white/[0.08] pt-10 lg:grid-cols-12 lg:gap-12">
           <div className="lg:col-span-3">
-            <div className="flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.24em] text-neutral-600">
+            <div className="flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.24em] text-neutral-400">
               <span className="h-px w-6 bg-white/20" />
               Toolkit
             </div>
             <h3 className="mt-4 font-['Syncopate'] text-2xl font-bold tracking-[-0.03em] text-white">
               BY LAYER
             </h3>
-            <p className="mt-3 max-w-[30ch] text-sm leading-6 text-neutral-500">
+            <p className="mt-3 max-w-[30ch] text-sm leading-6 text-neutral-400">
               The tools I reach for most often, grouped by the part of the system they serve.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-x-6 gap-y-9 md:grid-cols-4 lg:col-span-9">
-            {STACK_GROUPS.map((group) => (
-              <div key={group.label}>
-                <p className="border-b border-white/[0.07] pb-3 font-mono text-[9px] uppercase tracking-[0.2em] text-neutral-500">
-                  {group.label}
-                </p>
-                <ul className="mt-4 space-y-2.5">
-                  {group.items.map((item) => (
-                    <li
-                      key={item}
-                      className="text-[13px] leading-5 text-neutral-400 transition-colors duration-300 hover:text-white"
-                    >
-                      {item}
-                    </li>
-                  ))}
-                </ul>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-4 lg:col-span-9">
+            {STACK_GROUPS.map((group, idx) => (
+              <div
+                key={group.label}
+                data-illuminate-card={`toolkit-layer-${idx + 1}`}
+                data-accent-color={TOOLKIT_ACCENTS[idx % TOOLKIT_ACCENTS.length]}
+                className="illuminated-card overflow-hidden rounded-[18px] border border-white/[0.08] bg-[#07080c]/86 p-6"
+              >
+                <div className="relative z-10">
+                  <p className="border-b border-white/[0.08] pb-3 font-mono text-[9px] uppercase tracking-[0.2em] text-neutral-300">
+                    {group.label}
+                  </p>
+                  <ul className="mt-4 space-y-2.5">
+                    {group.items.map((item) => (
+                      <li
+                        key={item}
+                        className="card-readable-copy text-[13px] leading-5 text-neutral-300 transition-colors duration-300 hover:text-white"
+                      >
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             ))}
           </div>
@@ -988,7 +985,7 @@ const Footer: React.FC = () => {
   return (
     <footer
       id="contact"
-      className="relative z-10 scroll-mt-20 overflow-hidden border-t border-white/[0.07] bg-[#030303]/92 backdrop-blur-md"
+      className="relative z-10 scroll-mt-20 overflow-hidden border-t border-white/[0.07]"
     >
       <div
         className="pointer-events-none absolute right-[-3rem] top-1/2 hidden w-[min(700px,52vw)] -translate-y-1/2 text-white/[0.045] lg:block"
@@ -1004,41 +1001,51 @@ const Footer: React.FC = () => {
       </div>
 
       <div className="container relative mx-auto px-6 pb-8 pt-24 md:px-12 md:pt-32">
-        <div className="grid gap-14 lg:grid-cols-12 lg:gap-16">
-          <div className="lg:col-span-7">
-            <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.28em] text-neutral-500">
-              <span className="h-px w-8 bg-white/25" />
-              Contact
-              <span className="text-neutral-600">/ 01</span>
-            </div>
-            <h2 className="mt-6 font-['Syncopate'] text-[clamp(2.55rem,7vw,5.5rem)] font-bold leading-[0.95] tracking-[-0.055em] text-white">
-              HAVE A HARD
-              <br />
-              PROBLEM<span className="text-neutral-600">?</span>
-            </h2>
-            <p className="mt-6 font-['Instrument_Serif'] text-[clamp(1.9rem,3.2vw,2.75rem)] italic leading-[1.1] text-neutral-300">
-              Good. That&apos;s the interesting part.
-            </p>
-            <p className="mt-6 max-w-[52ch] text-sm leading-7 text-neutral-400">
-              Send the workflow, the data, or the step that keeps failing. I&apos;ll tell you what it would take to make it dependable.
-            </p>
+        <div className="grid gap-8 lg:grid-cols-12 lg:gap-10">
+          <div
+            data-illuminate-card="contact-primary"
+            data-accent-color="#7dd3fc"
+            className="illuminated-card overflow-hidden rounded-[22px] border border-white/[0.08] bg-[#07080c]/86 p-8 md:p-10 lg:col-span-7"
+          >
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.28em] text-neutral-400">
+                <span className="h-px w-8 bg-white/25" />
+                Contact
+                <span className="text-neutral-500">/ 01</span>
+              </div>
+              <h2 className="mt-6 font-['Syncopate'] text-[clamp(2.35rem,6.2vw,4.8rem)] font-bold leading-[0.95] tracking-[-0.055em] text-white">
+                HAVE A HARD
+                <br />
+                PROBLEM<span className="text-neutral-500">?</span>
+              </h2>
+              <p className="mt-6 font-['Instrument_Serif'] text-[clamp(1.75rem,3vw,2.5rem)] italic leading-[1.1] text-neutral-100">
+                Good. That&apos;s the interesting part.
+              </p>
+              <p className="card-readable-copy mt-6 max-w-[52ch] text-sm leading-7 text-neutral-300">
+                Send the workflow, the data, or the step that keeps failing. I&apos;ll tell you what it would take to make it dependable.
+              </p>
 
-            <a
-              href="mailto:studioinfinitys@gmail.com"
-              className="group mt-10 flex items-center justify-between gap-5 border-y border-white/[0.1] py-5 transition-colors duration-500 hover:border-white/25"
-            >
-              <span className="break-all font-mono text-[clamp(0.92rem,2.3vw,1.35rem)] tracking-[-0.02em] text-neutral-200 transition-colors duration-500 group-hover:text-white">
-                studioinfinitys@gmail.com
-              </span>
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 text-neutral-400 transition-all duration-500 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:border-white/25 group-hover:text-white">
-                <ArrowUpRight size={17} />
-              </span>
-            </a>
+              <a
+                href="mailto:studioinfinitys@gmail.com"
+                className="group mt-10 flex items-center justify-between gap-5 border-y border-white/[0.12] py-5 transition-colors duration-500 hover:border-white/30"
+              >
+                <span className="break-all font-mono text-[clamp(0.92rem,2.3vw,1.35rem)] tracking-[-0.02em] text-neutral-100 transition-colors duration-500 group-hover:text-white">
+                  studioinfinitys@gmail.com
+                </span>
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/15 text-neutral-300 transition-all duration-500 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:border-white/30 group-hover:text-white">
+                  <ArrowUpRight size={17} />
+                </span>
+              </a>
+            </div>
           </div>
 
-          <div className="flex flex-col justify-between gap-12 border-t border-white/[0.07] pt-8 lg:col-span-5 lg:border-l lg:border-t-0 lg:pl-14 lg:pt-0">
-            <div>
-              <p className="font-mono text-[9px] uppercase tracking-[0.24em] text-neutral-600">
+          <div
+            data-illuminate-card="contact-elsewhere"
+            data-accent-color="#c4b5fd"
+            className="illuminated-card flex flex-col justify-between gap-10 overflow-hidden rounded-[22px] border border-white/[0.08] bg-[#07080c]/86 p-8 md:p-10 lg:col-span-5"
+          >
+            <div className="relative z-10">
+              <p className="font-mono text-[9px] uppercase tracking-[0.24em] text-neutral-400">
                 Currently building
               </p>
               <ul className="mt-5 space-y-4">
@@ -1047,19 +1054,19 @@ const Footer: React.FC = () => {
                   "LLM systems with evaluation built in",
                   "Agents that leave a record of every step",
                 ].map((item) => (
-                  <li key={item} className="flex gap-3 text-sm leading-6 text-neutral-400">
-                    <span className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-neutral-600" />
+                  <li key={item} className="card-readable-copy flex gap-3 text-sm leading-6 text-neutral-300">
+                    <span className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-300/70" />
                     <span>{item}</span>
                   </li>
                 ))}
               </ul>
             </div>
 
-            <div>
-              <p className="font-mono text-[9px] uppercase tracking-[0.24em] text-neutral-600">
+            <div className="relative z-10">
+              <p className="font-mono text-[9px] uppercase tracking-[0.24em] text-neutral-400">
                 Elsewhere
               </p>
-              <div className="mt-4 border-t border-white/[0.07]">
+              <div className="mt-4 border-t border-white/[0.08]">
                 {[
                   { label: "GitHub", meta: "/redfries", href: "https://github.com/redfries" },
                   { label: "LinkedIn", meta: "/in/redfries", href: "https://www.linkedin.com/in/redfries/" },
@@ -1069,10 +1076,10 @@ const Footer: React.FC = () => {
                     href={link.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="group flex items-center justify-between gap-4 border-b border-white/[0.07] py-4 text-sm text-neutral-300 transition-colors duration-300 hover:text-white"
+                    className="group flex items-center justify-between gap-4 border-b border-white/[0.08] py-4 text-sm text-neutral-200 transition-colors duration-300 hover:text-white"
                   >
                     <span>{link.label}</span>
-                    <span className="flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.16em] text-neutral-600 transition-colors group-hover:text-neutral-400">
+                    <span className="flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.16em] text-neutral-400 transition-colors group-hover:text-neutral-200">
                       {link.meta}
                       <ArrowUpRight
                         size={12}
@@ -1086,9 +1093,9 @@ const Footer: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-20 flex flex-col gap-5 border-t border-white/[0.07] pt-6 font-mono text-[9px] uppercase tracking-[0.2em] text-neutral-600 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-16 flex flex-col gap-5 border-t border-white/[0.08] pt-6 font-mono text-[9px] uppercase tracking-[0.2em] text-neutral-400 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <span className="text-neutral-300">Shabaaz Hussain</span>
+            <span className="text-neutral-200">Shabaaz Hussain</span>
             <span className="hidden h-1 w-1 rounded-full bg-neutral-700 sm:block" />
             <span>AI &amp; ML Engineer</span>
           </div>
@@ -1096,7 +1103,7 @@ const Footer: React.FC = () => {
             <span>&copy; {year} &middot; Designed in the void</span>
             <a
               href="#top"
-              className="group inline-flex items-center gap-1.5 transition-colors duration-300 hover:text-white"
+              className="group inline-flex items-center gap-1.5 text-neutral-300 transition-colors duration-300 hover:text-white"
             >
               Back to top
               <ArrowUp
