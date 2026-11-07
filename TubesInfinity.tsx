@@ -468,16 +468,14 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
   return (
     <div
       aria-hidden="true"
-      className={`fixed inset-0 z-0 pointer-events-none transition-opacity duration-1000 ${
-        status === 'ready' ? 'opacity-100' : 'opacity-0'
-      }`}
+      className={`tubes-layer${status === 'ready' ? ' is-ready' : ''}`}
     >
       {/* The engine sizes itself to this canvas's parent, so the wrapper above
           is what defines the drawing buffer: exactly the viewport, independent
           of the hero section's 100svh. */}
       <canvas
         ref={canvasRef}
-        className="w-full h-full block"
+        className="tubes-canvas"
         style={{ touchAction: 'manipulation' }}
       />
     </div>
