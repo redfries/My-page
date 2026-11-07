@@ -1,49 +1,59 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import {
-  clamp,
-  damp,
-  lerp,
-  isPastHeroThreshold,
-  computeHeroToCardBlend,
-  computeHeroFigureRadii,
-  computeCanvasBackgroundOpacity,
-  computeBoundedPointerPull,
-  evaluateCardsIllumination,
-  computeTubeOrbitOffsetPx,
-  createRafThrottler,
-  computeScrollPerformanceBudget,
-  type CardMetrics,
-  type IlluminationEvaluation,
-} from './tubesLogic';
 
 /**
  * Shared warp source, read by ParticleGrid in App.tsx. Values are viewport pixel
- * coordinates.
+ * coordinates. The tubes engine owns its own scene and exposes no per-frame head
+ * position, so nothing writes to this any more and `strength` stays 0 — which is
+ * exactly the inert state ParticleGrid already treats as "no hero scene". It is
+ * kept because App.tsx imports it, and because ParticleGrid only mounts on the
+ * 'failed' path where there is no 3D scene to warp the grid anyway.
  */
 export const heroWarp = { x: -10000, y: -10000, strength: 0 };
 
 export type HeroStatus = 'loading' | 'ready' | 'failed';
 
 /**
- * `threejs-components@0.0.19/build/cursors/tubes1.min.js`
+ * The tubes engine, verbatim from the reference (inspiration/ins.js). It is a
+ * self-contained 775KB ES module with Three.js bundled in — it shares nothing
+ * with the app's own `three` dependency, which is why this is a CDN import
+ * rather than an npm one. Pinned to the exact version the reference uses; the
+ * look is the whole point, and a minor bump could retune it.
+ *
  * Original concept and implementation by Kevin Levron, CC BY-NC-SA 4.0 —
  * attribution required, non-commercial use only.
  */
 const TUBES_SRC =
   'https://cdn.jsdelivr.net/npm/threejs-components@0.0.19/build/cursors/tubes1.min.js';
 
+/**
+ * Colour themes. One is picked at random on every load and clicking moves to
+ * another at random, so the figure is never the same twice in a row.
+ *
+ * `setColors` treats the tube list as a gradient ramp and samples it across all
+ * 16 tubes rather than assigning one colour per tube, so each theme reads as a
+ * sweep from its first colour to its last. That is why the order matters and
+ * why three stops is enough.
+ */
 const THEMES: { name: string; tubes: string[]; lights: string[] }[] = [
   {
+    // The reference palette, copied exactly from inspiration/ins.js.
     name: 'neon',
     tubes: ['#f967fb', '#53bc28', '#6958d5'],
     lights: ['#83f36e', '#fe8a2e', '#ff008a', '#60aed5'],
   },
   {
+    // Monochrome. The tubes are metalness 1 at roughness 0.25, so with neutral
+    // lights a greyscale ramp renders as chrome rather than as flat grey — the
+    // white end blows through the bloom threshold and the dark end holds an
+    // edge. #111 rather than pure black: a true #000 tube takes no specular at
+    // all and the strand simply disappears instead of falling into shadow.
     name: 'mono',
     tubes: ['#ffffff', '#8a8a8a', '#111111'],
     lights: ['#ffffff', '#e6e6e6', '#ffffff', '#b4b4b4'],
   },
   {
+    // The site's own cold family — the one theme that matches the headline
+    // gradient above the figure instead of deliberately clashing with it.
     name: 'ice',
     tubes: ['#e0f2fe', '#38bdf8', '#6958d5'],
     lights: ['#7dd3fc', '#a78bfa', '#c4b5fd', '#60aed5'],
@@ -71,23 +81,118 @@ const THEMES: { name: string; tubes: string[]; lights: string[] }[] = [
 ];
 
 const LIGHT_INTENSITY = 200;
+
+const pickTheme = (exclude?: number) => {
+  if (THEMES.length < 2) return 0;
+  let i = exclude;
+  // Never land on the theme already showing, or a click would look like a
+  // dead control.
+  while (i === exclude) i = Math.floor(Math.random() * THEMES.length);
+  return i as number;
+};
+
+/**
+ * The figure is the engine's own idle ("sleep") path, not a custom curve.
+ *
+ * Its render loop drives the tube target at
+ *   x = sleepRadiusX * cos(elapsed * sleepTimeScale1)
+ *   y = sleepRadiusY * sin(elapsed * sleepTimeScale2)
+ * and ships defaults of 300 / 150 / 1 / 2 — a 1:2 frequency ratio, which is a
+ * Gerono lemniscate. The engine already traces an elongated infinity whenever
+ * the pointer is away; that is what the reference stills are showing, not a
+ * mouse being moved in a figure-8.
+ *
+ * So there is no path to author — the onBeforeRender override below only takes
+ * the wheel off the cursor, and then decides how much of that path is on screen
+ * at once and where it sits.
+ */
+const SLEEP_TIME_SCALE_1 = 1;
+const SLEEP_TIME_SCALE_2 = 2;
+
+/**
+ * How much of the figure is on screen at once.
+ *
+ * Each tube is a chain of points: the head lerps toward the target and every
+ * other point lerps toward the one in front of it, so the strand is a trail of
+ * where the target has been. Its length is therefore (points x lag per point),
+ * and the engine's defaults — 32-128 points at lerp 0.5 — buy about a fifth of
+ * the loop. That is the single diagonal swoosh the hero was drawing: a stroke
+ * that never reached its own crossing, so it never read as an infinity.
+ *
+ * `lerp` is the lever, and it is the free one. Every point is rebuilt on the
+ * CPU each step, so buying the tail with more points would cost frame time;
+ * dropping the lerp to 0.35 instead sits each point further behind the one in
+ * front, which stretches the *same* chain over ~2.5x more of the path for no
+ * extra work at all. Measured off scratch/tail-sweep.mjs, which replays this
+ * exact chain offline:
+ *
+ *   lerp 0.50 (stock)   22-35% of the loop   a bare arc
+ *   lerp 0.35           45-60% of the loop   a full lobe, the crossing, and a
+ *                                            tail fading into the second lobe
+ *
+ * Do not push past ~70%: the tail laps the head and the strand spirals inward,
+ * which draws a second, smaller infinity inside the first. The point count is
+ * left at the engine's own 32-128 — raising it lengthens the tail too, but it
+ * is the one knob here that shows up in the frame budget.
+ */
 const TUBE_LERP = 0.35;
+
+/**
+ * The chain above lerps once per *rendered frame* with no reference to how long
+ * that frame took, so on a 120Hz phone every strand is half as long in time as
+ * on a 60Hz laptop — the same figure, drawn at half the coverage. Advancing it
+ * on a fixed step instead makes the figure identical on every display, and caps
+ * what a high-refresh screen costs: the strands are rebuilt on the CPU each
+ * step, so 120Hz now does the same work per second as 60Hz rather than double.
+ *
+ * A frame that took longer than MAX_STEPS is not made up. Falling behind slows
+ * the figure down, which is invisible; catching up would pile the whole backlog
+ * onto the slowest device in one frame.
+ */
 const SIM_STEP = 1 / 60;
 const MAX_STEPS_PER_FRAME = 3;
+
+/**
+ * Filling the strands in.
+ *
+ * Every chain starts collapsed at the origin, so the figure grows out of a
+ * point: it takes as many steps as the longest chain is long, times the lag per
+ * point, before the tail reaches its full length — about 250 steps, or four and
+ * a half seconds of watching a short arc that looks like the old swoosh.
+ *
+ * Two things happen until it is full. The clock runs fast and eases back to
+ * real time as it fills, so the figure arrives with the hero's fade-in rather
+ * than a few seconds after it. And a frame is allowed far more steps than the
+ * steady-state cap, under a millisecond budget: on a reload the module is
+ * already cached, so the engine starts inside the page's own load storm, and at
+ * the normal cap the backlog dropped by those slow early frames is enough to
+ * leave the figure stuck as a short arc long after everything else has settled.
+ */
 const FILL_STEPS = 250;
 const FILL_RATE = 2;
 const FILL_MAX_STEPS_PER_FRAME = 8;
 const FILL_BUDGET_MS = 5;
 
-const pickTheme = (exclude?: number) => {
-  if (THEMES.length < 2) return 0;
-  let i = exclude;
-  while (i === exclude) i = Math.floor(Math.random() * THEMES.length);
-  return i as number;
+/**
+ * Radii in CSS pixels, matching the units the engine's sleep path uses. The
+ * reference's 300 is right on a desktop and far too wide on a phone, so it is
+ * scaled by viewport width and capped at the reference value. The 2:1 ratio is
+ * held exactly — it is what makes the lemniscate read wide and flat instead of
+ * as two circles.
+ */
+const figureRadii = () => {
+  const rx = Math.max(96, Math.min(300, window.innerWidth * 0.36));
+  return { rx, ry: rx * 0.5 };
 };
 
+/**
+ * Publishes the box the figure occupies so the hero column can reserve exactly
+ * that much room and the text never collides with it. The tubes lerp toward the
+ * target with noise rather than sitting on it, so they overshoot the bare path;
+ * the 1.18 covers that trailing envelope plus the thickest tube's radius.
+ */
 const publishFigureBox = () => {
-  const { ry } = computeHeroFigureRadii(window.innerWidth);
+  const { ry } = figureRadii();
   document.documentElement.style.setProperty(
     '--infinity-h',
     `${Math.round(ry * 2 * 1.18)}px`
@@ -106,61 +211,16 @@ function hasWebGL(): boolean {
   }
 }
 
-function detectSoftwareGl(): boolean {
-  try {
-    const c = document.createElement('canvas');
-    const gl = (c.getContext('webgl2') || c.getContext('webgl')) as WebGLRenderingContext | null;
-    if (!gl) return true;
-    const ext = gl.getExtension('WEBGL_debug_renderer_info');
-    const param = ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER;
-    const gpu = String(gl.getParameter(param));
-    gl.getExtension('WEBGL_lose_context')?.loseContext();
-    return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
-  } catch {
-    return false;
-  }
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  const clean = hex.replace('#', '').trim();
-  const full =
-    clean.length === 3
-      ? clean
-          .split('')
-          .map((ch) => ch + ch)
-          .join('')
-      : clean;
-  const num = parseInt(full, 16);
-  if (Number.isNaN(num)) return [125, 211, 252];
-  return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
-}
-
-function mixHexColors(hexA: string, hexB: string, t: number): string {
-  const [r1, g1, b1] = hexToRgb(hexA);
-  const [r2, g2, b2] = hexToRgb(hexB);
-  const r = Math.round(r1 + (r2 - r1) * t);
-  const g = Math.round(g1 + (g2 - g1) * t);
-  const b = Math.round(b1 + (b2 - b1) * t);
-  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
-}
-
-interface TubeMeshInstance {
-  points: { x: number; y: number; z: number }[];
-  geometry: { update(): void };
-}
-
+/** Shape of the object the engine's factory returns. */
 interface TubesApp {
   three: {
     size: { width: number; height: number; wWidth: number; wHeight: number };
-    minPixelRatio?: number;
-    maxPixelRatio?: number;
-    resize?: () => void;
     onBeforeRender: (state: { elapsed: number; delta: number }) => void;
   };
+  /** The tube group is also the scene, so moving it moves the whole figure. */
   tubes: {
     target: { x: number; y: number; z: number };
-    position: { x: number; y: number; z: number };
-    tubes?: TubeMeshInstance[];
+    position: { y: number };
     update(state: { elapsed: number }): void;
     setColors(colors: string[]): void;
     setLightsColors(colors: string[]): void;
@@ -168,30 +228,24 @@ interface TubesApp {
   dispose(): void;
 }
 
-interface CachedCardLayout {
-  el: HTMLElement;
-  id: string;
-  docLeft: number;
-  docTop: number;
-  width: number;
-  height: number;
-  accentColor: string;
-  lastIllum: number;
-  lastGlowX: number;
-  lastGlowY: number;
-  lastActive: boolean;
-}
-
 interface Props {
+  /** Called once the scene is live, or if it fails and the SVG should show. */
   onStatusChange?: (status: HeroStatus) => void;
+  /**
+   * The element in the hero layout that reserves room for the figure. The
+   * camera is panned so the figure centres on this box: the canvas is fixed and
+   * viewport-sized while the hero section is 100svh, so on a phone the two
+   * centre lines sit tens of pixels apart.
+   */
   anchorRef?: React.RefObject<HTMLElement | null>;
 }
 
 const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState<HeroStatus>('loading');
 
+  // Before first paint, so the hero reserves the figure's box up front instead
+  // of reflowing the text when the engine finishes loading.
   useLayoutEffect(() => {
     publishFigureBox();
   }, []);
@@ -205,310 +259,21 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
       '(prefers-reduced-motion: reduce)'
     ).matches;
 
+    // The engine is a continuous animation with no meaningful still frame — its
+    // tubes only form the figure by chasing a moving target. There is nothing to
+    // freeze, so under reduced motion it is not started at all and the hero
+    // falls through to the static SVG infinity App.tsx renders for 'failed'.
+    if (!hasWebGL() || reducedMotion) {
+      setStatus('failed');
+      return;
+    }
+
     let disposed = false;
     let app: TubesApp | undefined;
     let teardown: (() => void) | undefined;
 
-    let pointerX = -9999;
-    let pointerY = -9999;
-    let pointerActive = false;
-    let latestScrollY = window.scrollY;
-
-    // Coalesce high-frequency pointer and scroll events via requestAnimationFrame
-    const rafPointerThrottler = createRafThrottler((cx: number, cy: number) => {
-      pointerX = cx;
-      pointerY = cy;
-      pointerActive = true;
-    });
-
-    const rafScrollThrottler = createRafThrottler((sy: number) => {
-      latestScrollY = sy;
-    });
-
-    const onPointerMove = (e: PointerEvent) => {
-      rafPointerThrottler(e.clientX, e.clientY);
-    };
-    const onPointerLeave = () => {
-      rafPointerThrottler.cancel();
-      pointerActive = false;
-    };
-    const onWindowScroll = () => {
-      rafScrollThrottler(window.scrollY);
-    };
-
-    window.addEventListener('pointermove', onPointerMove, { passive: true });
-    document.addEventListener('pointerleave', onPointerLeave);
-    window.addEventListener('scroll', onWindowScroll, { passive: true });
-
-    let cachedCards: CachedCardLayout[] = [];
-    let heroHeightPx = window.innerHeight;
-    let maxScrollYPx = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-    let heroRestOffsetPx = 0;
-    let frameLeft = 0;
-    let frameTop = 0;
-    let frameWidth = window.innerWidth;
-    let frameHeight = window.innerHeight;
-
-    const measureStaticLayout = () => {
-      const sy = window.scrollY;
-      latestScrollY = sy;
-      const el = anchorRef?.current ?? document.getElementById('infinity-spacer');
-      const canvas = canvasRef.current;
-      const heroEl =
-        el?.closest('section') ?? document.getElementById('hero-section');
-      heroHeightPx = heroEl?.clientHeight || window.innerHeight;
-      maxScrollYPx = Math.max(
-        1,
-        document.documentElement.scrollHeight - window.innerHeight
-      );
-
-      if (canvas) {
-        const frame = canvas.getBoundingClientRect();
-        frameLeft = frame.left;
-        frameTop = frame.top;
-        frameWidth = frame.width || window.innerWidth;
-        frameHeight = frame.height || window.innerHeight;
-      } else {
-        frameLeft = 0;
-        frameTop = 0;
-        frameWidth = window.innerWidth;
-        frameHeight = window.innerHeight;
-      }
-
-      if (el) {
-        const box = el.getBoundingClientRect();
-        const docCenterY = box.top + sy + box.height * 0.5;
-        heroRestOffsetPx = docCenterY - (frameTop + frameHeight * 0.5);
-      } else {
-        heroRestOffsetPx = 0;
-      }
-
-      const cardEls = Array.from(
-        document.querySelectorAll<HTMLElement>('[data-illuminate-card]')
-      );
-      cachedCards = cardEls.map((cardEl, idx) => {
-        const rect = cardEl.getBoundingClientRect();
-        const accentColor = cardEl.dataset.accentColor || '#7dd3fc';
-        cardEl.style.setProperty('--glow-color', accentColor);
-        return {
-          el: cardEl,
-          id: cardEl.dataset.illuminateCard || cardEl.id || `card-${idx}`,
-          docLeft: rect.left,
-          docTop: rect.top + sy,
-          width: rect.width,
-          height: rect.height,
-          accentColor,
-          lastIllum: -1,
-          lastGlowX: -9999,
-          lastGlowY: -9999,
-          lastActive: false,
-        };
-      });
-    };
-
-    measureStaticLayout();
-
-    let lastBodyMode = '';
-    let lastBodyCard = '';
-    let lastBodyBlend = '';
-    let lastCanvasOpacity = -1;
-    let lastDomCommitTimeMs = 0;
-
-    // rAF-throttled DOM writer so CSS custom properties and data attributes
-    // never cause synchronous style thrashing during heavy scroll bursts
-    const commitDomIllumination = createRafThrottler(
-      (
-        scrollY: number,
-        blend: number,
-        evalResult: IlluminationEvaluation
-      ) => {
-        if (disposed) return;
-        const mode = isPastHeroThreshold(scrollY, heroHeightPx)
-          ? 'illuminating'
-          : 'hero';
-        const activeCardStr = evalResult.activeCardId ?? '';
-        const blendStr = blend.toFixed(2);
-
-        if (mode !== lastBodyMode) {
-          lastBodyMode = mode;
-          document.body.dataset.tubesMode = mode;
-          const spacer =
-            anchorRef?.current ?? document.getElementById('infinity-spacer');
-          spacer?.setAttribute('data-tubes-mode', mode);
-        }
-        if (activeCardStr !== lastBodyCard) {
-          lastBodyCard = activeCardStr;
-          document.body.dataset.illuminatedCard = activeCardStr;
-          const spacer =
-            anchorRef?.current ?? document.getElementById('infinity-spacer');
-          spacer?.setAttribute('data-active-card', activeCardStr);
-        }
-        if (blendStr !== lastBodyBlend) {
-          lastBodyBlend = blendStr;
-          document.body.dataset.heroBlend = blendStr;
-          const spacer =
-            anchorRef?.current ?? document.getElementById('infinity-spacer');
-          spacer?.setAttribute('data-tubes-blend', blendStr);
-        }
-
-        const desiredOpacity = computeCanvasBackgroundOpacity(blend);
-        if (
-          containerRef.current &&
-          Math.abs(desiredOpacity - lastCanvasOpacity) >= 0.01
-        ) {
-          lastCanvasOpacity = desiredOpacity;
-          containerRef.current.style.opacity = String(desiredOpacity);
-        }
-
-        for (let i = 0; i < cachedCards.length; i++) {
-          const c = cachedCards[i];
-          const out = evalResult.cards[i];
-          if (!out) continue;
-
-          if (Math.abs(out.illumination - c.lastIllum) >= 0.008) {
-            c.lastIllum = out.illumination;
-            c.el.style.setProperty('--illumination', String(out.illumination));
-          }
-
-          if (out.illumination > 0.01) {
-            if (Math.abs(out.glowX - c.lastGlowX) >= 4) {
-              c.lastGlowX = out.glowX;
-              c.el.style.setProperty('--glow-x', `${out.glowX}px`);
-            }
-            if (Math.abs(out.glowY - c.lastGlowY) >= 4) {
-              c.lastGlowY = out.glowY;
-              c.el.style.setProperty('--glow-y', `${out.glowY}px`);
-            }
-          }
-
-          if (out.isActive !== c.lastActive) {
-            c.lastActive = out.isActive;
-            if (out.isActive) {
-              c.el.dataset.illuminated = 'true';
-            } else {
-              delete c.el.dataset.illuminated;
-            }
-          }
-        }
-      }
-    );
-
-    const evaluateAndScheduleDomIllumination = (
-      scrollY: number,
-      blend: number,
-      tubeViewportX: number,
-      tubeViewportY: number,
-      minIntervalMs = 14
-    ) => {
-      if (cachedCards.length === 0) {
-        measureStaticLayout();
-      }
-
-      const metrics: CardMetrics[] = new Array(cachedCards.length);
-      for (let i = 0; i < cachedCards.length; i++) {
-        const c = cachedCards[i];
-        metrics[i] = {
-          id: c.id,
-          left: c.docLeft,
-          top: c.docTop - scrollY,
-          width: c.width,
-          height: c.height,
-          accentColor: c.accentColor,
-        };
-      }
-
-      const evalResult = evaluateCardsIllumination({
-        cards: metrics,
-        viewportWidth: frameWidth,
-        viewportHeight: frameHeight,
-        scrollY,
-        maxScrollY: maxScrollYPx,
-        pointerX,
-        pointerY,
-        pointerActive,
-        tubeViewportX,
-        tubeViewportY,
-        blend,
-      });
-
-      const now = performance.now();
-      if (
-        now - lastDomCommitTimeMs >= minIntervalMs ||
-        scrollY === 0 ||
-        blend <= 0.01
-      ) {
-        lastDomCommitTimeMs = now;
-        commitDomIllumination(scrollY, blend, evalResult);
-      }
-
-      return evalResult;
-    };
-
-    if (!hasWebGL() || reducedMotion) {
-      setStatus('failed');
-      let fallbackRaf = 0;
-      let fallbackSimTime = 0;
-      let fallbackBlend = 0;
-      let fallbackCardX = window.innerWidth * 0.5;
-      let fallbackCardY = window.innerHeight * 0.5;
-      const tickFallback = () => {
-        if (disposed) return;
-        rafScrollThrottler.flush();
-        rafPointerThrottler.flush();
-        const sy = latestScrollY;
-        const targetBlend = computeHeroToCardBlend(sy, heroHeightPx);
-        fallbackBlend = damp(fallbackBlend, targetBlend, 12, 1 / 60);
-        if (fallbackBlend < 0.001) fallbackBlend = 0;
-        if (fallbackBlend > 0.999) fallbackBlend = 1;
-
-        fallbackSimTime += SIM_STEP;
-        const { rx, ry } = computeHeroFigureRadii(window.innerWidth);
-        const orbit = computeTubeOrbitOffsetPx({
-          simTime: fallbackSimTime,
-          heroRx: rx,
-          heroRy: ry,
-          cardWidth: 680,
-          cardHeight: 380,
-          blend: fallbackBlend,
-          scrollY: sy,
-        });
-
-        const evalRes = evaluateAndScheduleDomIllumination(
-          sy,
-          fallbackBlend,
-          fallbackCardX + orbit.offsetX,
-          fallbackCardY - orbit.offsetY
-        );
-        commitDomIllumination.flush();
-        fallbackCardX = damp(fallbackCardX, evalRes.targetViewportX, 9, 1 / 60);
-        fallbackCardY = damp(fallbackCardY, evalRes.targetViewportY, 9, 1 / 60);
-        heroWarp.x = fallbackCardX + orbit.offsetX;
-        heroWarp.y = fallbackCardY - orbit.offsetY;
-        heroWarp.strength = fallbackBlend > 0.02 ? 1 : 0;
-
-        if (!reducedMotion) {
-          fallbackRaf = requestAnimationFrame(tickFallback);
-        }
-      };
-      tickFallback();
-      const rafFallbackScroll = createRafThrottler(() => {
-        if (reducedMotion) tickFallback();
-      });
-      window.addEventListener('scroll', rafFallbackScroll, { passive: true });
-      return () => {
-        disposed = true;
-        cancelAnimationFrame(fallbackRaf);
-        rafFallbackScroll.cancel();
-        rafPointerThrottler.cancel();
-        rafScrollThrottler.cancel();
-        commitDomIllumination.cancel();
-        window.removeEventListener('scroll', rafFallbackScroll);
-        window.removeEventListener('scroll', onWindowScroll);
-        window.removeEventListener('pointermove', onPointerMove);
-        document.removeEventListener('pointerleave', onPointerLeave);
-      };
-    }
-
+    // If the CDN is blocked or slow, stop waiting and show the SVG rather than
+    // leaving an empty hero behind the text.
     const failTimer = window.setTimeout(() => {
       if (!app && !disposed) setStatus('failed');
     }, 6000);
@@ -523,9 +288,12 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
           options: unknown
         ) => TubesApp;
 
+        // The load-time theme is chosen here rather than applied after mount, so
+        // the first frame is already the right palette instead of flashing the
+        // default and correcting itself.
         let themeIndex = pickTheme();
-        const isSoftGl = detectSoftwareGl();
 
+        // Options in the shape the reference passes them, with the theme swapped in.
         app = TubesCursor(canvasRef.current, {
           tubes: {
             colors: THEMES[themeIndex].tubes,
@@ -540,248 +308,132 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
         const three = app.three;
         const tubes = app.tubes;
 
-        if (isSoftGl && three.minPixelRatio !== undefined) {
-          three.minPixelRatio = 1;
-          three.maxPixelRatio = 1;
-          three.resize?.();
-        }
-
-        measureStaticLayout();
-
-        // Keep group at origin with zero rotation—all motion happens genuinely
-        // in 3D space through `tubes.target` and the engine's `lerpTo` chain!
-        tubes.position.x = 0;
-        tubes.position.y = 0;
-        tubes.position.z = 0;
-
-        const tubeList = tubes.tubes ?? [];
-        const initWorldPerPx = three.size.wWidth / three.size.width;
-        const initHeroWorldY = -(heroRestOffsetPx - window.scrollY) * initWorldPerPx;
-        for (let i = 0; i < tubeList.length; i++) {
-          const pts = tubeList[i].points;
-          for (let j = 0; j < pts.length; j++) {
-            pts[j].y = initHeroWorldY;
+        // Vertical distance from the canvas's centre line to the reserved box's,
+        // in CSS pixels. The canvas is fixed, so this shifts as the hero scrolls
+        // past. Recomputed only when the page has actually moved, rather than on
+        // every frame — the rect read is cheap inside the render loop (layout has
+        // already settled by then) but it is not free.
+        //
+        // Measured against the canvas rather than window.innerHeight because
+        // those two disagree on a phone: the canvas is what the engine sizes its
+        // scene to, and while the URL bar is on screen it is not the same height
+        // as the window. Comparing the box to the frame it is actually drawn in
+        // keeps the figure centred through every bar show/hide.
+        let anchorOffsetPx = 0;
+        let measuredAtScrollY = NaN;
+        const measureAnchor = () => {
+          measuredAtScrollY = window.scrollY;
+          const el = anchorRef?.current;
+          const canvas = canvasRef.current;
+          if (!el || !canvas) {
+            anchorOffsetPx = 0;
+            return;
           }
-        }
+          const box = el.getBoundingClientRect();
+          const frame = canvas.getBoundingClientRect();
+          anchorOffsetPx =
+            box.top + box.height / 2 - (frame.top + frame.height / 2);
+        };
 
+        // Clock for the sleep path. Its own, rather than the engine's `elapsed`,
+        // because it only advances in whole SIM_STEPs and the target has to be
+        // sampled at the same instant the chain is stepped.
         let simTime = 0;
         let simSteps = 0;
         let backlog = 0;
-        let transitionCatchupSteps = 0;
 
-        let prevScrollY = window.scrollY;
-        let scrollVelocity = 0;
-        let dampedBlend = computeHeroToCardBlend(window.scrollY, heroHeightPx);
-        let dampedSpineX = frameLeft + frameWidth * 0.5;
-        let dampedSpineY = frameTop + frameHeight * 0.5;
-        let dampedCardW = Math.min(960, frameWidth * 0.8);
-        let dampedCardH = Math.min(380, frameHeight * 0.44);
-        let lastAppliedLightKey = '';
-
+        /**
+         * The whole modification, and it is all in this one function. The stock
+         * loop hands the target to the cursor whenever the pointer is over the
+         * canvas, and this canvas covers the viewport — so the figure would only
+         * ever be an infinity while the mouse sat still somewhere else.
+         * Overriding onBeforeRender keeps the engine's own sleep path running
+         * unconditionally, on a fixed step, with the figure parked on the hero's
+         * reserved box. Everything downstream — the tubes, their materials, the
+         * four lights, the bloom — is untouched engine code doing exactly what it
+         * does in the reference.
+         */
         three.onBeforeRender = (state: { elapsed: number; delta: number }) => {
-          // Flush any pending rAF-throttled scroll/pointer updates once for this frame
-          rafScrollThrottler.flush();
-          rafPointerThrottler.flush();
-
-          const dt = clamp(state.delta || SIM_STEP, 0.001, 0.05);
           const worldPerPx = three.size.wWidth / three.size.width;
-          const { rx, ry } = computeHeroFigureRadii(frameWidth);
+          const { rx, ry } = figureRadii();
 
-          const scrollY = window.scrollY !== latestScrollY ? window.scrollY : latestScrollY;
-          latestScrollY = scrollY;
-          const deltaScrollY = scrollY - prevScrollY;
-          prevScrollY = scrollY;
-
-          const instVelocity = deltaScrollY / dt;
-          scrollVelocity = damp(scrollVelocity, instVelocity, 10, dt);
-          if (Math.abs(scrollVelocity) < 0.5) scrollVelocity = 0;
-
-          if (scrollY < 20 && Math.abs(scrollVelocity) < 120) {
-            const spacerEl =
-              anchorRef?.current ?? document.getElementById('infinity-spacer');
-            if (spacerEl) {
-              const box = spacerEl.getBoundingClientRect();
-              heroRestOffsetPx =
-                box.top + scrollY + box.height * 0.5 - (frameTop + frameHeight * 0.5);
-            }
-          }
-
-          const rawBlend = computeHeroToCardBlend(scrollY, heroHeightPx);
-          if (rawBlend === 0 && dampedBlend > 0.05) {
-            transitionCatchupSteps = 220;
-          }
-
-          const blendLambda = rawBlend === 0 ? 28 : 10;
-          dampedBlend = damp(dampedBlend, rawBlend, blendLambda, dt);
-          if (rawBlend === 0 && dampedBlend < 0.01) dampedBlend = 0;
-          if (rawBlend === 1 && dampedBlend > 0.995) dampedBlend = 1;
-
-          const frameCenterX = frameLeft + frameWidth * 0.5;
-          const frameCenterY = frameTop + frameHeight * 0.5;
-
-          const pull = computeBoundedPointerPull(
-            dampedSpineX,
-            dampedSpineY,
-            frameWidth,
-            frameHeight,
-            pointerX,
-            pointerY,
-            pointerActive,
-            simTime
-          );
-
-          const heroViewportCenterX = frameCenterX;
-          const heroViewportCenterY =
-            frameCenterY + heroRestOffsetPx - scrollY * (1 - dampedBlend);
-
-          const activeCenterX_px = lerp(
-            heroViewportCenterX,
-            dampedSpineX,
-            dampedBlend
-          );
-          const activeCenterY_px = lerp(
-            heroViewportCenterY,
-            dampedSpineY,
-            dampedBlend
-          );
-
-          const previewOrbit = computeTubeOrbitOffsetPx({
-            simTime,
-            heroRx: rx,
-            heroRy: ry,
-            cardWidth: dampedCardW,
-            cardHeight: dampedCardH,
-            blend: dampedBlend,
-            scrollY,
-            scrollVelocity,
-            pointerNormX: pull.normX,
-            pointerNormY: pull.normY,
-          });
-
-          const tubeViewportX = activeCenterX_px + previewOrbit.offsetX;
-          const tubeViewportY = activeCenterY_px - previewOrbit.offsetY;
+          // Driven off scrollY rather than a scroll listener: the browser fires
+          // those on its own cadence and a busy phone can coalesce the last one
+          // of a flick away, which parks the figure where the scroll used to be
+          // instead of where it ended.
+          if (window.scrollY !== measuredAtScrollY) measureAnchor();
 
           const filled = Math.min(1, simSteps / FILL_STEPS);
-          const inHeroReturnCatchup =
-            transitionCatchupSteps > 0 && dampedBlend < 0.05;
+          const maxSteps =
+            filled < 1 ? FILL_MAX_STEPS_PER_FRAME : MAX_STEPS_PER_FRAME;
 
-          const perfBudget = computeScrollPerformanceBudget({
-            scrollVelocity,
-            filled,
-            inHeroReturnCatchup,
-            maxStepsNormal: MAX_STEPS_PER_FRAME,
-            maxStepsFill: FILL_MAX_STEPS_PER_FRAME,
-            baseBudgetMs: FILL_BUDGET_MS,
-          });
-
-          const evalResult = evaluateAndScheduleDomIllumination(
-            scrollY,
-            dampedBlend,
-            tubeViewportX,
-            tubeViewportY,
-            perfBudget.domUpdateMinIntervalMs
-          );
-
-          const desiredSpineX = evalResult.targetViewportX + pull.pullX;
-          const desiredSpineY = evalResult.targetViewportY + pull.pullY;
-
-          dampedSpineX = damp(dampedSpineX, desiredSpineX, 9, dt);
-          dampedSpineY = damp(dampedSpineY, desiredSpineY, 9, dt);
-          dampedCardW = damp(dampedCardW, evalResult.targetCardWidth, 6, dt);
-          dampedCardH = damp(dampedCardH, evalResult.targetCardHeight, 6, dt);
-
-          // Harmonize the 4 point lights subtly toward the active section/card accent
-          const baseLights = THEMES[themeIndex].lights;
-          const accent = evalResult.activeAccentColor;
-          const tintAmount = Number((dampedBlend * 0.48).toFixed(2));
-          const lightKey = `${themeIndex}:${accent ?? 'none'}:${tintAmount}`;
-          if (lightKey !== lastAppliedLightKey) {
-            lastAppliedLightKey = lightKey;
-            if (tintAmount <= 0.02 || !accent) {
-              tubes.setLightsColors(baseLights);
-            } else {
-              tubes.setLightsColors([
-                mixHexColors(baseLights[0], accent, tintAmount),
-                mixHexColors(baseLights[1], accent, tintAmount * 0.7),
-                mixHexColors(baseLights[2], accent, tintAmount),
-                baseLights[3],
-              ]);
-            }
-          }
-
-          const scrollBoost = perfBudget.isHeavyScroll
-            ? 0
-            : clamp(Math.abs(scrollVelocity) / 1100, 0, 0.8);
-          const rateMultiplier =
-            filled < 1 || inHeroReturnCatchup
-              ? FILL_RATE * 1.4
-              : 1 + scrollBoost;
-          const maxSteps = perfBudget.maxSteps;
-
+          // Anything past a frame's worth of steps is dropped rather than
+          // carried, so a stall — a backgrounded tab, a slow device — never ends
+          // in the figure whipping across the screen to catch up.
           backlog = Math.min(
-            backlog + dt * rateMultiplier,
+            backlog + state.delta * (1 + (FILL_RATE - 1) * (1 - filled)),
             SIM_STEP * maxSteps
           );
 
-          const deadline = performance.now() + perfBudget.budgetMs;
+          const deadline = performance.now() + FILL_BUDGET_MS;
           let steps = 0;
           while (backlog >= SIM_STEP && steps < maxSteps) {
             backlog -= SIM_STEP;
             simTime += SIM_STEP;
             simSteps++;
             steps++;
-            if (inHeroReturnCatchup && transitionCatchupSteps > 0) {
-              transitionCatchupSteps--;
-            }
 
-            const stepOrbit = computeTubeOrbitOffsetPx({
-              simTime,
-              heroRx: rx,
-              heroRy: ry,
-              cardWidth: dampedCardW,
-              cardHeight: dampedCardH,
-              blend: dampedBlend,
-              scrollY,
-              scrollVelocity,
-              pointerNormX: pull.normX,
-              pointerNormY: pull.normY,
-            });
-
-            const targetViewportX = activeCenterX_px + stepOrbit.offsetX;
-            const targetViewportY = activeCenterY_px - stepOrbit.offsetY;
-
-            tubes.target.x = (targetViewportX - frameCenterX) * worldPerPx;
-            tubes.target.y = -(targetViewportY - frameCenterY) * worldPerPx;
-            tubes.target.z = stepOrbit.offsetZ;
-
+            tubes.target.x =
+              rx * worldPerPx * Math.cos(simTime * SLEEP_TIME_SCALE_1);
+            tubes.target.y =
+              ry * worldPerPx * Math.sin(simTime * SLEEP_TIME_SCALE_2);
             tubes.update({ elapsed: simTime });
 
-            if (steps >= 1 && performance.now() > deadline) {
+            // The extra fill steps are what the budget is for; the steady-state
+            // ones are owed and always run.
+            if (steps >= MAX_STEPS_PER_FRAME && performance.now() > deadline) {
               break;
             }
           }
 
-          heroWarp.x = tubeViewportX;
-          heroWarp.y = tubeViewportY;
-          heroWarp.strength = 1;
+          // Slide the figure onto the reserved box. This moves the scene, not
+          // the camera, and that is load-bearing: the engine derives its world
+          // size from the camera's *distance from the origin*, so a camera that
+          // has been panned to follow the scroll makes the next resize compute a
+          // world several times too large. On a phone that resize arrives every
+          // time the URL bar shows or hides — which is on every scroll — and the
+          // enlarged world feeds straight back into the pan, so the figure grew
+          // and slid out of frame a little more with every swipe. Moving the
+          // group leaves the camera at the origin distance the engine assumes.
+          tubes.position.y = -anchorOffsetPx * worldPerPx;
         };
 
-        const onResize = createRafThrottler(() => {
+        measureAnchor();
+        const onResize = () => {
           publishFigureBox();
-          measureStaticLayout();
-        });
-        window.addEventListener('resize', onResize, { passive: true });
+          measureAnchor();
+        };
+        window.addEventListener('resize', onResize);
+        // iOS reports a URL bar collapse on the visual viewport and not always
+        // as a window resize, and that collapse changes the canvas's height.
         window.visualViewport?.addEventListener('resize', onResize);
 
+        // Syncopate arrives from Google Fonts after first paint and changes the
+        // height of the text above the figure, which moves the box the figure is
+        // centred on. Re-measure once it lands.
         document.fonts?.ready.then(() => {
-          if (!disposed) measureStaticLayout();
+          if (!disposed) measureAnchor();
         });
 
+        // Click to change theme. The reference shuffles to fully random colours;
+        // going through a curated set instead is what keeps a monochrome pass in
+        // the rotation, since random RGB would essentially never produce one.
+        // Links and buttons are left alone so the nav and the scroll arrow still
+        // work.
         const onClick = (e: MouseEvent) => {
           const target = e.target as HTMLElement | null;
           if (target?.closest('a, button')) return;
           themeIndex = pickTheme(themeIndex);
-          lastAppliedLightKey = '';
           app?.tubes.setColors(THEMES[themeIndex].tubes);
           app?.tubes.setLightsColors(THEMES[themeIndex].lights);
         };
@@ -790,10 +442,13 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
         setStatus('ready');
 
         teardown = () => {
-          onResize.cancel();
           window.removeEventListener('resize', onResize);
           window.visualViewport?.removeEventListener('resize', onResize);
           window.removeEventListener('click', onClick);
+          // Releases the renderer and the engine's own pointer listeners. The
+          // engine already parks itself off-screen via an IntersectionObserver
+          // and on tab-hide via visibilitychange, so this only has to cover
+          // unmount.
           app?.dispose();
         };
 
@@ -806,25 +461,20 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
     return () => {
       disposed = true;
       window.clearTimeout(failTimer);
-      rafPointerThrottler.cancel();
-      rafScrollThrottler.cancel();
-      commitDomIllumination.cancel();
-      window.removeEventListener('scroll', onWindowScroll);
-      window.removeEventListener('pointermove', onPointerMove);
-      document.removeEventListener('pointerleave', onPointerLeave);
       teardown?.();
     };
   }, [anchorRef]);
 
   return (
     <div
-      ref={containerRef}
       aria-hidden="true"
-      data-testid="tubes-canvas-container"
-      className={`fixed inset-0 z-0 pointer-events-none transition-opacity duration-700 ${
+      className={`fixed inset-0 z-0 pointer-events-none transition-opacity duration-1000 ${
         status === 'ready' ? 'opacity-100' : 'opacity-0'
       }`}
     >
+      {/* The engine sizes itself to this canvas's parent, so the wrapper above
+          is what defines the drawing buffer: exactly the viewport, independent
+          of the hero section's 100svh. */}
       <canvas
         ref={canvasRef}
         className="w-full h-full block"

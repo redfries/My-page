@@ -1,6 +1,6 @@
 {
-  "name": "Shabaaz Hussain — AI & ML Portfolio",
-  "description": "Portfolio of Shabaaz Hussain (infinitys.me) featuring interactive 3D neon infinity tubes that smoothly transition on scroll to illuminate project and capability cards.",
+  "name": "Shabaaz Portfolio",
+  "description": "A minimal, dark-themed portfolio for Shabaaz.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }
