@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import TubesInfinity, { heroWarp, type HeroStatus } from './TubesInfinity';
 import Starfield from './Starfield';
+import PaperTransition from './PaperTransition';
 
 // --- Types ---
 interface Project {
@@ -438,9 +439,15 @@ const ApproachSection: React.FC = () => (
         })}
       </div>
 
-      <div className="toolkit">
+    </div>
+  </section>
+);
+
+const ToolkitSection: React.FC = () => (
+  <section className="toolkit-section" aria-labelledby="toolkit-title">
+      <div className="shell toolkit">
         <div className="toolkit__head">
-          <p className="toolkit__label">toolkit</p>
+          <h2 id="toolkit-title" className="toolkit__label">toolkit</h2>
           <span className="toolkit__count">{TOOLKIT.length} tools</span>
         </div>
         <div className="toolkit__track">
@@ -456,7 +463,6 @@ const ApproachSection: React.FC = () => (
           </div>
         </div>
       </div>
-    </div>
   </section>
 );
 
@@ -802,13 +808,14 @@ const Footer: React.FC = () => {
 
 export default function App() {
   const [heroStatus, setHeroStatus] = useState<HeroStatus>('loading');
+  const [heroAccent, setHeroAccent] = useState('#a8b8ce');
   const figureRef = useRef<HTMLDivElement>(null);
 
   return (
     <div id="top" className="app-root">
       {/* The tubes travel with the hero; stars remain fixed above their canvas.
           Both remain at the root, below the z-10 content sections. */}
-      <TubesInfinity anchorRef={figureRef} onStatusChange={setHeroStatus} />
+      <TubesInfinity anchorRef={figureRef} onStatusChange={setHeroStatus} onAccentChange={setHeroAccent} />
       {heroStatus === 'failed' && <ParticleGrid />}
       <Starfield />
 
@@ -816,7 +823,9 @@ export default function App() {
 
       <main>
         <MainHero status={heroStatus} figureRef={figureRef} />
+        <PaperTransition ground={heroStatus === 'ready' ? '#000000' : '#171717'} accent={heroAccent} />
         <ApproachSection />
+        <ToolkitSection />
         <WorkSection />
         <ContactSection />
       </main>

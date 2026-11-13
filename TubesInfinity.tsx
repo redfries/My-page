@@ -231,6 +231,8 @@ interface TubesApp {
 interface Props {
   /** Called once the scene is live, or if it fails and the SVG should show. */
   onStatusChange?: (status: HeroStatus) => void;
+  /** Share a theme accent with the paper seam without changing the engine. */
+  onAccentChange?: (color: string) => void;
   /**
    * The element in the hero layout that reserves room for the figure. The
    * scene group is positioned so the figure centres on this box. The canvas
@@ -239,9 +241,14 @@ interface Props {
   anchorRef?: React.RefObject<HTMLElement | null>;
 }
 
-const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
+const TubesInfinity: React.FC<Props> = ({ onStatusChange, onAccentChange, anchorRef }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const accentCallback = useRef(onAccentChange);
   const [status, setStatus] = useState<HeroStatus>('loading');
+
+  useEffect(() => {
+    accentCallback.current = onAccentChange;
+  }, [onAccentChange]);
 
   // Before first paint, so the hero reserves the figure's box up front instead
   // of reflowing the text when the engine finishes loading.
@@ -303,6 +310,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
             lerp: TUBE_LERP,
           },
         });
+        accentCallback.current?.(THEMES[themeIndex].tubes[1]);
 
         const three = app.three;
         const tubes = app.tubes;
@@ -437,6 +445,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
           themeIndex = pickTheme(themeIndex);
           app?.tubes.setColors(THEMES[themeIndex].tubes);
           app?.tubes.setLightsColors(THEMES[themeIndex].lights);
+          accentCallback.current?.(THEMES[themeIndex].tubes[1]);
         };
         window.addEventListener('click', onClick);
 

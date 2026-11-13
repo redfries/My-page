@@ -208,8 +208,26 @@ body {
 
 /* ---------- Approach ---------- */
 
+.paper-transition {
+  --seam-ground: #000;
+  position: relative;
+  z-index: 10;
+  height: clamp(240px, 24vw, 340px);
+  margin-top: -72px;
+  pointer-events: none;
+  /* Only a fallback. Both ends agree with the renderer; no second mask over
+     the live field that can reintroduce a grey stripe near the paper join. */
+  background: linear-gradient(to bottom, transparent, var(--seam-ground) 72px, var(--paper) 78%);
+}
+
+.paper-transition__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .section-approach {
-  padding: 112px 0 104px;
+  padding: 24px 0 64px;
 }
 
 .cap-grid {
@@ -253,24 +271,37 @@ body {
 
 /* ---------- Toolkit marquee ---------- */
 
+.toolkit-section {
+  position: relative;
+  z-index: 10;
+  color: var(--paper);
+  background: var(--paper);
+}
+
 .toolkit {
-  display: block;
-  margin-top: 88px;
-  padding-top: 22px;
-  border-top: 1px solid var(--line-dark);
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  align-items: center;
+  gap: 28px;
+  padding: 24px 28px;
+  background: linear-gradient(120deg, #15171c, #090a0c 65%);
+  border: 1px solid #25282f;
+  border-radius: 6px;
 }
 
 .toolkit__head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding-right: 24px;
+  border-right: 1px solid #30343c;
 }
 
 .toolkit__label {
   margin: 0;
-  color: var(--muted);
+  color: #e0e3eb;
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.06em;
@@ -279,7 +310,7 @@ body {
 }
 
 .toolkit__count {
-  color: var(--meta);
+  color: #939ba8;
   font-size: 11px;
   font-weight: 400;
   letter-spacing: 0.04em;
@@ -308,8 +339,8 @@ body {
   position: relative;
   padding: 2px 22px 2px 0;
   margin-right: 22px;
-  color: var(--muted);
-  font-size: 12px;
+  color: #c8cdd6;
+  font-size: 13px;
   font-weight: 400;
   letter-spacing: 0.035em;
   line-height: 22px;
@@ -324,7 +355,7 @@ body {
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: #b4b2ad;
+  background: #5b6574;
   transform: translateY(-50%);
 }
 
@@ -341,7 +372,10 @@ body {
 
 .work-section {
   padding: 104px 0 112px;
-  border-top: 1px solid var(--line-dark);
+}
+
+.toolkit-section + .work-section {
+  padding-top: clamp(64px, 7vw, 96px);
 }
 
 .work-head {
@@ -862,7 +896,7 @@ body {
   }
 
   .section-approach {
-    padding: 84px 0 80px;
+    padding: 16px 0 40px;
   }
 
   .display {
@@ -905,7 +939,17 @@ body {
   }
 
   .toolkit {
-    margin-top: 56px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+    padding: 18px 20px;
+  }
+
+  .toolkit__head {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    padding-right: 0;
+    border-right: 0;
   }
 
   .work-section {
@@ -977,7 +1021,7 @@ body {
 
 @media (min-width: 1024px) {
   .section-approach {
-    padding: 196px 0 116px;
+    padding: 24px 0 72px;
   }
 
   .work-section {
