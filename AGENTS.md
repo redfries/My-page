@@ -46,6 +46,11 @@ Shabaaz-Portfolio/
     │   ├── index.html                # Cheque OCR research landing page
     │   ├── styles.css                # Dark technical dashboard layout
     │   └── script.js                 # Interactive pipeline visualizer & reveals
+    ├── rent/                         # Subproject 4: Residence Rental Listing (infinitys.me/rent)
+    │   ├── index.html                # Architectural dark rental landing page & photo tour
+    │   ├── styles.css                # Luxury editorial styling, bento gallery & lightbox
+    │   ├── script.js                 # Gallery filter, QR generator & WhatsApp direct engine
+    │   └── property-config.js        # Easy-to-edit property details, pricing & specs
     └── lab/                          # Animation sandbox (infinitys.me/lab) - noindex
         ├── index.html                # Standalone tubes-infinity experiment
         └── infinity-tubes.js         # Self-contained Three.js engine (CDN importmap)
@@ -117,6 +122,19 @@ exists so the two repos cannot drift apart again.
 
 ---
 
+### E. Subproject 4: Luxury Residence Rental Listing (`public/rent/`)
+- **Route**: `https://www.infinitys.me/rent/` (with permanent redirect from `/rent`)
+- **Purpose**: High-conversion, direct-from-owner residential property rental showcase designed specifically for physical flyer QR code distribution, WhatsApp inquiries, and social sharing.
+- **Tech & Styling**:
+  - Pure zero-dependency Vanilla JS + semantic CSS (`styles.css`, `script.js`).
+  - Google Fonts: *Instrument Serif* + *Plus Jakarta Sans*.
+  - Dark luxury architectural monograph aesthetic matching portfolio (`#070707`, `#111111`, `#dcb372` champagne gold, `#10b981` verified live badge).
+  - All property parameters (pricing, address, BHK, photos, owner phone & whatsapp) are isolated in `property-config.js` for instant updates.
+  - Interactive photo lightbox with dimension badges, category tabs, amenities matrix, specifications breakdown, and direct WhatsApp / call action bar.
+  - Built-in QR Code generator & printable ad cutout for physical newspaper / flyer campaigns.
+
+---
+
 ## ⚡ 4. Vercel Routing & Cache Control Specification (`vercel.json`)
 
 All routing, rewrites, and HTTP header rules are centralized in [`vercel.json`](./vercel.json):
@@ -127,6 +145,11 @@ All routing, rewrites, and HTTP header rules are centralized in [`vercel.json`](
     {
       "source": "/credit-card-tracker",
       "destination": "/credit-card-tracker/",
+      "permanent": true
+    },
+    {
+      "source": "/rent",
+      "destination": "/rent/",
       "permanent": true
     }
   ],
@@ -142,6 +165,10 @@ All routing, rewrites, and HTTP header rules are centralized in [`vercel.json`](
     {
       "source": "/ocr/:path*",
       "destination": "/ocr/index.html"
+    },
+    {
+      "source": "/rent/:path*",
+      "destination": "/rent/index.html"
     }
   ],
   "headers": [

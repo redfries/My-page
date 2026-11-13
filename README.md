@@ -10,6 +10,7 @@ Personal portfolio website and suite of web applications hosted at [https://www.
 - **Main Portfolio**: [infinitys.me](https://www.infinitys.me/)
 - **Reading with AI (PRE)**: [infinitys.me/pre/](https://www.infinitys.me/pre/)
 - **Arabic Cheque OCR**: [infinitys.me/ocr/](https://www.infinitys.me/ocr/)
+- **Residence Rental Listing**: [infinitys.me/rent/](https://www.infinitys.me/rent/)
 
 ## 🤖 AI Agent Instructions
 

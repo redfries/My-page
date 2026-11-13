@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Modern 3 BHK Residence for Rent | Direct from Owner — infinitys.me/rent</title>
+  
+  <!-- OpenGraph / WhatsApp / Social Share Preview -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.infinitys.me/rent/" />
+  <meta property="og:title" content="Spacious 3 BHK Luxury Residence for Rent — Direct Owner" />
+  <meta property="og:description" content="Sunlit, peaceful residence with modular kitchen, 2 covered car parks, 100% power backup, and green views. Zero brokerage fee." />
+  <meta property="og:image" content="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+
+  <!-- Ambient Background Lighting -->
+  <div class="bg-ambient-glow"></div>
+
+  <!-- ================= TOP NAVIGATION ================= -->
+  <nav class="site-nav">
+    <div class="container nav-inner">
+      <div class="nav-brand">
+        <div class="brand-monogram">IR</div>
+        <div class="brand-text">
+          <span class="brand-name">Infinity Residence</span>
+          <span class="brand-badge">Direct Owner • 0% Brokerage</span>
+        </div>
+      </div>
+
+      <ul class="nav-links">
+        <li><a href="#gallery" class="nav-link">Photo Tour</a></li>
+        <li><a href="#specs" class="nav-link">Specifications</a></li>
+        <li><a href="#amenities" class="nav-link">Amenities</a></li>
+        <li><a href="#location" class="nav-link">Location</a></li>
+        <li><a href="#flyer-qr" class="nav-link">Ad Flyer QR</a></li>
+      </ul>
+
+      <div class="nav-actions">
+        <a href="#flyer-qr" class="btn-pill-sm btn-secondary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          Ad QR Code
+        </a>
+        <a href="#contact" class="btn-pill-sm btn-primary">
+          Schedule Visit
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ================= HERO SECTION ================= -->
+  <header class="hero-section">
+    <div class="container">
+      
+      <!-- Meta Status Bar -->
+      <div class="hero-meta-bar">
+        <div class="status-pill">
+          <span class="status-indicator"></span>
+          Available for Immediate Occupancy
+        </div>
+        <div class="no-brokerage-tag">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          Zero Brokerage • Save ₹45,000–₹90,000
+        </div>
+      </div>
+
+      <!-- Main Headline -->
+      <h1 class="hero-title">
+        A tranquil, sunlit residence designed for <em>modern living</em>.
+      </h1>
+      <p class="hero-tagline">
+        Spacious 3 BHK home featuring floor-to-ceiling glass balconies, Italian vitrified flooring, a fully equipped modular chef's kitchen, and 2 covered car parks in a prime, peaceful residential enclave.
+      </p>
+
+      <!-- Key Specifications Ribbon -->
+      <div id="specs-ribbon" class="specs-ribbon">
+        <!-- Rendered by script.js -->
+      </div>
+
+      <!-- Split Hero Showcase -->
+      <div class="hero-showcase">
+        
+        <!-- Large Featured Photo -->
+        <div class="hero-feature-photo" onclick="document.querySelector('[data-index=\'0\']')?.click()">
+          <img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=80" alt="Expansive Living Room with Natural Sunlight" />
+          <div class="photo-overlay">
+            <div class="photo-overlay-title">Expansive Living & Dining Suite</div>
+            <div class="photo-overlay-desc">
+              <span>Natural East-Facing Morning Sunlight • 24' × 15'</span>
+              <span class="photo-badge-pill">Click to Explore All 8 Photos</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rent & Immediate Action Card -->
+        <div class="hero-action-card">
+          <div>
+            <div class="rent-header">
+              <div class="rent-label">Monthly Rental</div>
+              <div class="rent-amount">
+                <span id="rent-amount-val">₹45,000</span>
+                <span class="rent-period">/ month</span>
+              </div>
+            </div>
+
+            <div class="rent-breakdown-list">
+              <div class="breakdown-row">
+                <span>Brokerage Fee</span>
+                <span class="highlight-zero-brokerage">₹0 (Direct from Owner)</span>
+              </div>
+              <div class="breakdown-row">
+                <span>Security Deposit</span>
+                <span>₹1,50,000 (Refundable)</span>
+              </div>
+              <div class="breakdown-row">
+                <span>Maintenance</span>
+                <span>₹3,500 / month</span>
+              </div>
+              <div class="breakdown-row">
+                <span>Lease Agreement</span>
+                <span>11 Months (Renewable)</span>
+              </div>
+              <div class="breakdown-row">
+                <span>Move-in Date</span>
+                <span>Immediate / Ready</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="hero-cta-buttons">
+              <a href="#contact" class="btn-cta-primary">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                Schedule Private Viewing
+              </a>
+
+              <a href="#" class="btn-cta-whatsapp btn-action-whatsapp" target="_blank" rel="noopener noreferrer">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+                </svg>
+                Chat Directly on WhatsApp
+              </a>
+
+              <a href="#" class="btn-cta-secondary btn-action-call">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                </svg>
+                Call Owner (<span class="owner-phone-val">+91 98765 43210</span>)
+              </a>
+            </div>
+
+            <div class="owner-assurance">
+              <svg class="owner-assurance-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+              <span>Verified Direct Listing by <strong class="owner-name-val">Shabaaz Hussain</strong>. No middlemen.</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= PHOTO GALLERY SECTION ================= -->
+  <section id="gallery" class="section">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-eyebrow">Architectural Photography</span>
+        <h2 class="section-title">Explore every room & <em>detail</em>.</h2>
+        <p class="section-desc">Click any photograph to view high-resolution imagery, room dimensions, natural lighting orientations, and finishes.</p>
+      </div>
+
+      <!-- Filter Tabs -->
+      <div class="gallery-filter-tabs">
+        <button class="gallery-tab active" data-category="all">All Spaces (8)</button>
+        <button class="gallery-tab" data-category="living">Living & Dining</button>
+        <button class="gallery-tab" data-category="bedroom">Bedrooms & Suites</button>
+        <button class="gallery-tab" data-category="kitchen">Chef's Kitchen</button>
+        <button class="gallery-tab" data-category="bathroom">Bathrooms</button>
+        <button class="gallery-tab" data-category="balcony">Balcony & Views</button>
+        <button class="gallery-tab" data-category="exterior">Enclave & Parking</button>
+      </div>
+
+      <!-- Bento Grid Gallery -->
+      <div id="gallery-grid" class="gallery-grid">
+        <!-- Rendered by script.js -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SPECIFICATIONS SECTION ================= -->
+  <section id="specs" class="section">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-eyebrow">Full Transparency</span>
+        <h2 class="section-title">Detailed <em>specifications</em> & fixtures.</h2>
+        <p class="section-desc">Every aspect of this home has been carefully planned and maintained to executive standards.</p>
+      </div>
+
+      <div id="specs-grid" class="specs-accordion-grid">
+        <!-- Rendered by script.js -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= AMENITIES SECTION ================= -->
+  <section id="amenities" class="section">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-eyebrow">Lifestyle & Comfort</span>
+        <h2 class="section-title">Essential <em>amenities</em> included.</h2>
+        <p class="section-desc">Equipped with dependable utilities, digital security, and seamless daily convenience.</p>
+      </div>
+
+      <div id="amenities-grid" class="amenities-grid">
+        <!-- Rendered by script.js -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= LOCATION & LANDMARKS SECTION ================= -->
+  <section id="location" class="section">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-eyebrow">Neighborhood & Transit</span>
+        <h2 class="section-title">Connected, quiet, and <em>accessible</em>.</h2>
+        <p class="section-desc">Located in a peaceful residential pocket with immediate access to metro, groceries, IT hubs, and top schools.</p>
+      </div>
+
+      <div class="location-split">
+        <div>
+          <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 8px;">Key Nearby Distances & Commutes</h3>
+          <p style="font-size: 0.9rem; color: var(--text-muted);">Calculated by walk and normal traffic driving times:</p>
+
+          <div id="landmarks-grid" class="landmarks-grid">
+            <!-- Rendered by script.js -->
+          </div>
+        </div>
+
+        <div class="map-card">
+          <div>
+            <div class="address-box">
+              <div class="address-label">Exact Location / Address</div>
+              <div id="full-address-text" class="address-text">
+                Villa 42, Palm Avenue, Greenwood Enclave, Near Metro Station, Bengaluru
+              </div>
+            </div>
+
+            <div style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 20px;">
+              • Broad, quiet 40-foot tree-lined residential avenue.<br />
+              • Zero commercial traffic disturbances.<br />
+              • Walkable distance to parks, grocery supermarkets, and pharmacies.
+            </div>
+          </div>
+
+          <a id="btn-google-maps" href="https://maps.google.com/?q=Bangalore" target="_blank" rel="noopener noreferrer" class="btn-cta-secondary" style="width: 100%;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+              <line x1="8" y1="2" x2="8" y2="18"></line>
+              <line x1="16" y1="6" x2="16" y2="22"></line>
+            </svg>
+            Open Location on Google Maps
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FLYER & QR CODE TOOLKIT SECTION ================= -->
+  <section id="flyer-qr" class="section">
+    <div class="container">
+      <div class="qr-flyer-card">
+        
+        <div>
+          <span class="section-eyebrow">Physical Ad Paper & Print Toolkit</span>
+          <h2 class="qr-flyer-title">Put this QR Code on your <em>paper flyers & ads</em>.</h2>
+          <p class="qr-flyer-text">
+            When you print paper flyers or place an ad in newspapers/community boards, people can scan this high-contrast QR code with their phone camera to instantly open this exact page (<strong>infinitys.me/rent</strong>), explore all photos, and message you directly!
+          </p>
+
+          <div class="qr-download-actions">
+            <button id="btn-download-qr" class="btn-pill-sm btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Download QR Code Image
+            </button>
+
+            <button id="btn-print-flyer" class="btn-pill-sm btn-secondary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                <rect x="6" y="14" width="12" height="8"></rect>
+              </svg>
+              Print Ad Cutout Card
+            </button>
+          </div>
+        </div>
+
+        <!-- Ad Cutout Frame (Printable Preview) -->
+        <div class="flyer-preview-frame">
+          <div class="flyer-preview-badge">House For Rent • 0% Broker</div>
+          <div class="flyer-preview-headline">Scan for Photos & Details</div>
+          
+          <div id="qr-canvas-box" class="qr-canvas-box">
+            <!-- QR code rendered by script.js -->
+          </div>
+
+          <div class="flyer-preview-url">infinitys.me/rent</div>
+          <div class="flyer-preview-sub">Direct Owner: <span class="owner-phone-val">+91 98765 43210</span></div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CONTACT & SCHEDULE VIEWING ================= -->
+  <section id="contact" class="section">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-eyebrow">Connect Directly</span>
+        <h2 class="section-title">Schedule a visit or <em>inquire</em>.</h2>
+        <p class="section-desc">Speak directly with the homeowner. No intermediaries, no broker fees, and full clarity.</p>
+      </div>
+
+      <div class="contact-grid">
+        
+        <!-- Owner Contact Cards -->
+        <div class="contact-info-card">
+          <div>
+            <div class="owner-profile">
+              <div class="owner-avatar">SH</div>
+              <div>
+                <div class="owner-name owner-name-val">Shabaaz Hussain</div>
+                <div class="owner-role">Property Owner • Direct Listing</div>
+              </div>
+            </div>
+
+            <div class="contact-channels">
+              <a href="#" class="contact-channel-item btn-action-whatsapp" target="_blank" rel="noopener noreferrer">
+                <div class="channel-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="channel-label">Instant WhatsApp</div>
+                  <div class="channel-val">Chat with Owner</div>
+                </div>
+              </a>
+
+              <a href="#" class="contact-channel-item btn-action-call">
+                <div class="channel-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <div class="channel-label">Direct Phone Call</div>
+                  <div class="channel-val owner-phone-val">+91 98765 43210</div>
+                </div>
+              </a>
+
+              <div class="contact-channel-item">
+                <div class="channel-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                  </svg>
+                </div>
+                <div>
+                  <div class="channel-label">Email Inquiries</div>
+                  <div class="channel-val owner-email-val">studioinfinitys@gmail.com</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="font-size: 0.8rem; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 18px;">
+            Viewing Hours: 10:00 AM – 7:30 PM (Kindly confirm 1 hour prior).
+          </div>
+        </div>
+
+        <!-- Viewing Request Form -->
+        <div class="inquiry-form-card">
+          <h3 class="form-title">Request a Walkthrough</h3>
+          <p class="form-desc">Submit your details below and we will confirm your preferred viewing slot immediately on WhatsApp.</p>
+
+          <form id="inquiry-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="form-name">Your Full Name *</label>
+                <input type="text" id="form-name" class="form-input" placeholder="e.g. Rahul Sharma" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="form-phone">Mobile / WhatsApp Number *</label>
+                <input type="tel" id="form-phone" class="form-input" placeholder="e.g. +91 98765 43210" required />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="form-date">Preferred Viewing Date & Time</label>
+                <input type="text" id="form-date" class="form-input" placeholder="e.g. This Saturday at 4 PM" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="form-tenant-type">Tenant Profile</label>
+                <input type="text" id="form-tenant-type" class="form-input" placeholder="Family / Working Professionals" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="form-message">Questions or Specific Requirements</label>
+              <textarea id="form-message" class="form-textarea" rows="3" placeholder="Expected move-in date, car parking needs, etc."></textarea>
+            </div>
+
+            <button type="submit" class="btn-cta-whatsapp" style="width: 100%;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+              </svg>
+              Send Viewing Request via WhatsApp
+            </button>
+          </form>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <span class="brand-monogram" style="width: 28px; height: 28px; font-size: 1rem;">IR</span>
+        <span>The Residence • Hosted at <a href="https://www.infinitys.me/rent/" class="footer-domain">infinitys.me/rent</a></span>
+      </div>
+      <div>
+        Direct Owner Listing • No Brokerage Fees • © 2026 Shabaaz Hussain
+      </div>
+    </div>
+  </footer>
+
+  <!-- ================= STICKY MOBILE ACTION BAR ================= -->
+  <aside class="sticky-mobile-bar">
+    <div class="sticky-rent-info">
+      <div id="sticky-rent-val" class="sticky-rent-val">₹45,000</div>
+      <div class="sticky-rent-sub">0% Brokerage</div>
+    </div>
+    <div class="sticky-action-group">
+      <a href="#" class="btn-pill-sm btn-secondary btn-action-call" style="padding: 10px 14px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+        </svg>
+        Call
+      </a>
+      <a href="#" class="btn-pill-sm btn-cta-whatsapp btn-action-whatsapp" target="_blank" rel="noopener noreferrer" style="padding: 10px 16px;">
+        WhatsApp
+      </a>
+      <a href="#contact" class="btn-pill-sm btn-primary" style="padding: 10px 16px;">
+        Visit
+      </a>
+    </div>
+  </aside>
+
+  <!-- ================= FULLSCREEN LIGHTBOX MODAL ================= -->
+  <div id="lightbox-modal" class="lightbox-modal" role="dialog" aria-modal="true">
+    <div class="lightbox-topbar">
+      <div id="lightbox-counter" class="lightbox-counter">1 of 8</div>
+      <button id="lightbox-close" class="lightbox-close-btn" aria-label="Close photo preview">✕</button>
+    </div>
+
+    <div class="lightbox-content">
+      <button id="lightbox-prev" class="lightbox-nav-btn lightbox-prev" aria-label="Previous photo">‹</button>
+      <img id="lightbox-img" class="lightbox-img" src="" alt="Photo preview" />
+      <button id="lightbox-next" class="lightbox-nav-btn lightbox-next" aria-label="Next photo">›</button>
+    </div>
+
+    <div class="lightbox-footer">
+      <div id="lightbox-title" class="lightbox-title">Living Room</div>
+      <div id="lightbox-caption" class="lightbox-caption">Room details</div>
+    </div>
+  </div>
+
+  <!-- Config & Engine Scripts -->
+  <script src="./property-config.js"></script>
+  <script src="./script.js"></script>
+</body>
+</html>
