@@ -391,7 +391,8 @@ const MainHero: React.FC<{
         <h1 className="hero-title">And Beyond</h1>
 
         <p className="hero-tagline">
-          I train models, build with LLMs, and design AI agents that turn difficult work into dependable systems.
+          <span className="hero-tagline__lead">I train models, build with LLMs, and design AI agents.</span>
+          <span className="hero-tagline__detail">Turning difficult work into dependable systems.</span>
         </p>
       </div>
 
@@ -481,6 +482,16 @@ const ProjectVideo: React.FC<{ src: string; poster: string }> = ({ src, poster }
     const video = videoRef.current;
     if (!video || reducedMotion) return;
 
+    // Prepare the small clips before they enter view, instead of making the
+    // first scroll pay for download and decoder startup together.
+    const prepare = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return;
+      video.preload = 'auto';
+      video.load();
+      prepare.disconnect();
+    }, { rootMargin: '600px' });
+    prepare.observe(video);
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -493,7 +504,11 @@ const ProjectVideo: React.FC<{ src: string; poster: string }> = ({ src, poster }
     );
 
     observer.observe(video);
-    return () => observer.disconnect();
+    return () => {
+      prepare.disconnect();
+      observer.disconnect();
+      video.pause();
+    };
   }, [reducedMotion]);
 
   if (reducedMotion) {
@@ -508,7 +523,7 @@ const ProjectVideo: React.FC<{ src: string; poster: string }> = ({ src, poster }
       loop
       muted
       playsInline
-      preload="metadata"
+      preload="none"
       aria-hidden="true"
     >
       <source src={src} type="video/mp4" />
@@ -791,8 +806,8 @@ export default function App() {
 
   return (
     <div id="top" className="app-root">
-      {/* The hero canvas and the starfield share one fixed layer at z-0.
-          Every section below is z-10 and paints over them. */}
+      {/* The tubes travel with the hero; stars remain fixed above their canvas.
+          Both remain at the root, below the z-10 content sections. */}
       <TubesInfinity anchorRef={figureRef} onStatusChange={setHeroStatus} />
       {heroStatus === 'failed' && <ParticleGrid />}
       <Starfield />

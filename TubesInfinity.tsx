@@ -233,9 +233,8 @@ interface Props {
   onStatusChange?: (status: HeroStatus) => void;
   /**
    * The element in the hero layout that reserves room for the figure. The
-   * camera is panned so the figure centres on this box: the canvas is fixed and
-   * viewport-sized while the hero section is 100svh, so on a phone the two
-   * centre lines sit tens of pixels apart.
+   * scene group is positioned so the figure centres on this box. The canvas
+   * travels with the hero in a stable 100svh box; never pan the camera.
    */
   anchorRef?: React.RefObject<HTMLElement | null>;
 }
@@ -309,8 +308,9 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
         const tubes = app.tubes;
 
         // Vertical distance from the canvas's centre line to the reserved box's,
-        // in CSS pixels. The canvas is fixed, so this shifts as the hero scrolls
-        // past. Recomputed only when the page has actually moved, rather than on
+        // in CSS pixels. Canvas and hero now scroll together, so scrolling does
+        // not change their relative position. Recomputed on scroll to account
+        // for layout changes as well, rather than on
         // every frame — the rect read is cheap inside the render loop (layout has
         // already settled by then) but it is not free.
         //
@@ -360,7 +360,8 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
           // Driven off scrollY rather than a scroll listener: the browser fires
           // those on its own cadence and a busy phone can coalesce the last one
           // of a flick away, which parks the figure where the scroll used to be
-          // instead of where it ended.
+          // instead of where it ended. Both rects now travel together; this is
+          // a layout correction, not the mechanism that scrolls the figure.
           if (window.scrollY !== measuredAtScrollY) measureAnchor();
 
           const filled = Math.min(1, simSteps / FILL_STEPS);
@@ -470,9 +471,9 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, anchorRef }) => {
       aria-hidden="true"
       className={`tubes-layer${status === 'ready' ? ' is-ready' : ''}`}
     >
-      {/* The engine sizes itself to this canvas's parent, so the wrapper above
-          is what defines the drawing buffer: exactly the viewport, independent
-          of the hero section's 100svh. */}
+      {/* The engine sizes itself to this canvas's parent. The root-level
+          wrapper matches the hero's stable 100svh and scrolls off-screen,
+          allowing the engine's own IntersectionObserver to park rendering. */}
       <canvas
         ref={canvasRef}
         className="tubes-canvas"
