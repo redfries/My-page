@@ -122,8 +122,18 @@ exists so the two repos cannot drift apart again.
 
 ---
 
-### E. Subproject 4: Luxury Residence Rental Listing (`public/rent/`)
+### E. Subproject 4: Luxury Residence Rental Listing (`public/rent/`) — [TEMPORARY: 2–3 MONTHS]
 - **Route**: `https://www.infinitys.me/rent/` (with permanent redirect from `/rent`)
+- **Primary Source Directory**: `c:\Users\lords\OneDrive\Documents\house-rent\`  
+  *(Note for future AI agents: This residential rental project is maintained independently in `Documents/house-rent/`. The `public/rent/` folder in this repo is only a temporary deployment target for Vercel. Edit in `Documents/house-rent/` and run `.\sync-to-portfolio.ps1` to update this repository and deploy to `infinitys.me/rent/`).*
+- **Lifecycle & Decommissioning (Crucial for Future Agents)**:
+  - This subproject is **strictly temporary (active for ~2 to 3 months)** while the house is on the rental market.
+  - **Once the house is successfully rented**, any future agent can cleanly retire it in 60 seconds without affecting the rest of the portfolio:
+    1. Delete the folder `public/rent/`.
+    2. Remove the `/rent` redirect and rewrite block from `vercel.json`.
+    3. Remove `<a href="/rent/">residence rent</a>` from the footer in `App.tsx`.
+    4. Commit & push to `main`.
+    *(All historical files, photos, and flyers will remain permanently safe and archived in `Documents/house-rent/`)*.
 - **Purpose**: High-conversion, direct-from-owner residential property rental showcase designed specifically for physical flyer QR code distribution, WhatsApp inquiries, and social sharing.
 - **Tech & Styling**:
   - Pure zero-dependency Vanilla JS + semantic CSS (`styles.css`, `script.js`).
@@ -131,7 +141,7 @@ exists so the two repos cannot drift apart again.
   - Dark luxury architectural monograph aesthetic matching portfolio (`#070707`, `#111111`, `#dcb372` champagne gold, `#10b981` verified live badge).
   - All property parameters (pricing, address, BHK, photos, owner phone & whatsapp) are isolated in `property-config.js` for instant updates.
   - Interactive photo lightbox with dimension badges, category tabs, amenities matrix, specifications breakdown, and direct WhatsApp / call action bar.
-  - Built-in QR Code generator & printable ad cutout for physical newspaper / flyer campaigns.
+  - Built-in QR Code generator & printable A4 flyer cards (`flyer-a4.png`, `flyer-a4-white.png`, `flyer-a4.pdf`) for physical newspaper / flyer campaigns.
 
 ---
 

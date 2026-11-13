@@ -752,6 +752,7 @@ const Footer: React.FC = () => {
               <a href="#work">work</a>
               <a href="#approach">approach</a>
               <a href="#contact">contact</a>
+              <a href="/rent/">residence rent</a>
             </div>
             <div className="footer-col">
               <p className="footer-col__title">elsewhere</p>
