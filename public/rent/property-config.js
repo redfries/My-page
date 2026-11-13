@@ -40,10 +40,11 @@ window.PROPERTY_CONFIG = {
   // --- Owner Contact Info ---
   owner: {
     name: "Shabaaz Hussain",
-    phone: "+91 98765 43210", // REPLACE with your actual phone number
-    whatsapp: "+919876543210", // Phone format with country code, no spaces
+    phone: "+91 70133 71541",
+    phoneAlt: "+91 98486 59417",
+    whatsapp: "+917013371541",
     email: "studioinfinitys@gmail.com",
-    viewingHours: "10:00 AM – 7:30 PM (All days by appointment)",
+    viewingHours: "10:00 AM – 8:00 PM (All days by appointment)",
   },
 
   // --- Location & Landmarks ---

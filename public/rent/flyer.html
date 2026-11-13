@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3 BHK FOR RENT — Printable A4 Ad Flyer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 0;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #060606;
+      color: #ffffff;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow: hidden;
+    }
+
+    /* Fixed A4 Page Container */
+    .a4-page {
+      width: 210mm;
+      height: 297mm;
+      max-width: 210mm;
+      max-height: 297mm;
+      margin: 0 auto;
+      padding: 14mm 14mm 12mm;
+      position: relative;
+      background: #080808;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* Outer golden decorative border for instant prestige & visual pull ("Nigah") */
+    .a4-border-frame {
+      position: absolute;
+      inset: 6mm;
+      border: 2.5px solid #dcb372;
+      border-radius: 12px;
+      pointer-events: none;
+      box-shadow: inset 0 0 40px rgba(220, 179, 114, 0.08);
+    }
+
+    .corner-accent {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-color: #f59e0b;
+      border-style: solid;
+      pointer-events: none;
+    }
+    .corner-tl { top: 5mm; left: 5mm; border-width: 4px 0 0 4px; }
+    .corner-tr { top: 5mm; right: 5mm; border-width: 4px 4px 0 0; }
+    .corner-bl { bottom: 5mm; left: 5mm; border-width: 0 0 4px 4px; }
+    .corner-br { bottom: 5mm; right: 5mm; border-width: 0 4px 4px 0; }
+
+    /* Background Ambient Rays */
+    .ambient-glow {
+      position: absolute;
+      top: -10%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 140%;
+      height: 45%;
+      background: radial-gradient(circle, rgba(245, 158, 11, 0.18) 0%, rgba(220, 179, 114, 0.06) 50%, transparent 80%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .content-wrap {
+      position: relative;
+      z-index: 1;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      text-align: center;
+    }
+
+    /* 1. TOP HEADER SECTION */
+    .top-badge-wrap {
+      margin-top: 2mm;
+      margin-bottom: 3mm;
+    }
+
+    .direct-owner-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #f59e0b;
+      color: #000000;
+      font-weight: 900;
+      font-size: 13pt;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      padding: 6px 20px;
+      border-radius: 9999px;
+      box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4);
+    }
+
+    /* MASSIVE HEADLINE (VISIBLE FROM 20+ FEET AWAY) */
+    .hero-title-main {
+      font-size: 46pt;
+      font-weight: 900;
+      line-height: 0.95;
+      text-transform: uppercase;
+      letter-spacing: -0.02em;
+      color: #ffffff;
+      text-shadow: 0 4px 30px rgba(0, 0, 0, 0.9);
+      margin-bottom: 2mm;
+    }
+
+    .hero-title-main span.highlight-rent {
+      color: #fbbf24;
+      display: block;
+      font-size: 50pt;
+      letter-spacing: 0.02em;
+      text-shadow: 0 0 40px rgba(251, 191, 36, 0.5), 0 4px 10px rgba(0,0,0,0.8);
+    }
+
+    .sub-features-pill-row {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 2mm;
+    }
+
+    .feature-pill {
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(220, 179, 114, 0.4);
+      padding: 4px 14px;
+      border-radius: 6px;
+      font-size: 10.5pt;
+      font-weight: 700;
+      color: #f4efe6;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* 2. CENTERPIECE: SCANNER & LINK BOX */
+    .qr-showcase-box {
+      background: #ffffff;
+      color: #080808;
+      border-radius: 20px;
+      padding: 7mm 8mm 6mm;
+      margin: 4mm auto;
+      width: 92%;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 0 4px rgba(245, 158, 11, 0.8);
+      position: relative;
+    }
+
+    .qr-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 14pt;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #0a0a0a;
+      margin-bottom: 3.5mm;
+    }
+
+    .qr-card-header svg {
+      width: 22px;
+      height: 22px;
+      fill: #f59e0b;
+    }
+
+    .qr-canvas-holder {
+      width: 62mm;
+      height: 62mm;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 2mm;
+      border: 3px solid #000000;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .qr-canvas-holder img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      image-rendering: pixelated;
+    }
+
+    .scan-cue-text {
+      font-size: 11pt;
+      font-weight: 800;
+      color: #1e1e1e;
+      margin-top: 3mm;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .domain-pill-link {
+      display: inline-block;
+      margin-top: 2.5mm;
+      background: #080808;
+      color: #fbbf24;
+      font-family: monospace;
+      font-size: 16pt;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      padding: 6px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+    }
+
+    .qr-subtext {
+      font-size: 9.5pt;
+      font-weight: 600;
+      color: #555555;
+      margin-top: 2mm;
+    }
+
+    /* 3. BOTTOM CONTACT SECTION (ULTRA BOLD & READABLE) */
+    .contact-cta-wrapper {
+      margin-bottom: 2mm;
+    }
+
+    .contact-title-banner {
+      font-size: 13pt;
+      font-weight: 900;
+      color: #f59e0b;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 3mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .contact-title-banner::before, .contact-title-banner::after {
+      content: "";
+      width: 35px;
+      height: 2px;
+      background: #f59e0b;
+    }
+
+    .phone-numbers-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 3mm;
+    }
+
+    .phone-box-card {
+      background: linear-gradient(135deg, #171512, #242017);
+      border: 2.5px solid #fbbf24;
+      border-radius: 14px;
+      padding: 4mm 2mm;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .phone-label-sub {
+      font-size: 8.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #dcb372;
+      font-weight: 700;
+      margin-bottom: 1.5mm;
+    }
+
+    .phone-digits {
+      font-size: 19pt;
+      font-weight: 900;
+      color: #ffffff;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .bottom-tagline {
+      font-size: 9.5pt;
+      font-weight: 600;
+      color: #9e9a91;
+      margin-top: 2mm;
+      letter-spacing: 0.02em;
+    }
+
+    .bottom-tagline strong {
+      color: #ffffff;
+    }
+
+    /* Screen / Print optimizations */
+    @media print {
+      body {
+        background: #000000 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .a4-page {
+        border: none;
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="a4-page">
+    
+    <!-- Outer Golden Architectural Border Frame -->
+    <div class="a4-border-frame"></div>
+    <div class="corner-accent corner-tl"></div>
+    <div class="corner-accent corner-tr"></div>
+    <div class="corner-accent corner-bl"></div>
+    <div class="corner-accent corner-br"></div>
+
+    <!-- Background Ray/Glow -->
+    <div class="ambient-glow"></div>
+
+    <div class="content-wrap">
+      
+      <!-- TOP BADGE & HEADLINE -->
+      <div>
+        <div class="top-badge-wrap">
+          <div class="direct-owner-badge">
+            ✦ DIRECT FROM OWNER • 0% BROKERAGE ✦
+          </div>
+        </div>
+
+        <h1 class="hero-title-main">
+          3 BHK
+          <span class="highlight-rent">FOR RENT</span>
+        </h1>
+
+        <div class="sub-features-pill-row">
+          <div class="feature-pill">Spacious & Sunlit</div>
+          <div class="feature-pill">Modular Kitchen</div>
+          <div class="feature-pill">2 Car Parking</div>
+          <div class="feature-pill">Prime Location</div>
+        </div>
+      </div>
+
+      <!-- CENTER: SCANNER & DOMAIN LINK CARD -->
+      <div class="qr-showcase-box">
+        <div class="qr-card-header">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+          </svg>
+          SCAN WITH CAMERA FOR PHOTOS & VIDEO TOUR
+        </div>
+
+        <div class="qr-canvas-holder">
+          <img src="./qr-code-highres.png" alt="Scan QR Code for photos and details" />
+        </div>
+
+        <div class="scan-cue-text">
+          Instant Walkthrough • Room Dimensions • Exact Location
+        </div>
+
+        <div>
+          <span class="domain-pill-link">infinitys.me/rent</span>
+        </div>
+
+        <div class="qr-subtext">
+          Open on any phone browser to view full photo gallery
+        </div>
+      </div>
+
+      <!-- BOTTOM: CONTACT NUMBERS -->
+      <div class="contact-cta-wrapper">
+        <div class="contact-title-banner">
+          FOR MORE INFO & VIEWING VISIT
+        </div>
+
+        <div class="phone-numbers-grid">
+          <div class="phone-box-card">
+            <div class="phone-label-sub">Call / WhatsApp</div>
+            <div class="phone-digits">+91 70133 71541</div>
+          </div>
+          <div class="phone-box-card">
+            <div class="phone-label-sub">Direct Call</div>
+            <div class="phone-digits">+91 98486 59417</div>
+          </div>
+        </div>
+
+        <div class="bottom-tagline">
+          Deal directly with the owner • <strong>No broker fees</strong> • Friendly community
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</body>
+</html>

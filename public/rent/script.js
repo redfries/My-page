@@ -47,10 +47,13 @@
     ownerNameEls.forEach(el => el.textContent = cfg.owner?.name || 'Owner');
 
     const ownerPhoneEls = document.querySelectorAll('.owner-phone-val');
-    ownerPhoneEls.forEach(el => el.textContent = cfg.owner?.phone || '+91 98765 43210');
+    const displayPhones = cfg.owner?.phoneAlt 
+      ? `${cfg.owner.phone} / ${cfg.owner.phoneAlt}`
+      : (cfg.owner?.phone || '+91 70133 71541');
+    ownerPhoneEls.forEach(el => el.textContent = displayPhones);
 
     const ownerEmailEls = document.querySelectorAll('.owner-email-val');
-    ownerEmailEls.forEach(el => el.textContent = cfg.owner?.email || 'contact@infinitys.me');
+    ownerEmailEls.forEach(el => el.textContent = cfg.owner?.email || 'studioinfinitys@gmail.com');
 
     // Phone / WhatsApp links
     const phoneClean = (cfg.owner?.phone || '').replace(/[^0-9+]/g, '');
