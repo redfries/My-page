@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import useReducedMotion from './useReducedMotion';
 
 /**
  * The background of the whole page: a drifting starfield on a plain 2D canvas,
@@ -73,6 +74,7 @@ const TINTS = [
 
 const Starfield: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -80,15 +82,12 @@ const Starfield: React.FC = () => {
     const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
-    const reducedMotion = window.matchMedia(
-      '(prefers-reduced-motion: reduce)'
-    ).matches;
-
     let width = 0;
     let height = 0;
     let stars: Star[] = [];
     let frame = 0;
     let scrollShift = 0;
+    let visible = false;
 
     // Parked off-screen until the pointer actually moves, so a touch device
     // never gets a phantom shove at the origin.
@@ -96,6 +95,8 @@ const Starfield: React.FC = () => {
     let pointerY = -9999;
 
     const build = () => {
+      const oldWidth = width;
+      const oldHeight = height;
       width = window.innerWidth;
       height = window.innerHeight;
 
@@ -111,7 +112,13 @@ const Starfield: React.FC = () => {
         Math.min(MAX_STARS, Math.round((width * height) / AREA_PER_STAR))
       );
 
-      stars = new Array(count).fill(0).map(() => {
+      // URL-bar/rotation resizes must not reshuffle the entire sky.
+      stars.forEach(star => {
+        star.x *= width / oldWidth;
+        star.y *= height / oldHeight;
+      });
+      stars = Array.from({ length: count }, (_, index) => {
+        if (stars[index]) return stars[index];
         const depth = Math.random();
         return {
           x: Math.random() * width,
@@ -130,7 +137,7 @@ const Starfield: React.FC = () => {
       });
     };
 
-    const draw = () => {
+    const draw = (step = 1) => {
       ctx.clearRect(0, 0, width, height);
 
       for (const s of stars) {
@@ -161,10 +168,11 @@ const Starfield: React.FC = () => {
             s.vy += (Math.random() - 0.5) * POINTER_SHAKE;
           }
 
-          s.vx = (s.vx + (wantX - s.dx) * SPRING) * DRAG;
-          s.vy = (s.vy + (wantY - s.dy) * SPRING) * DRAG;
-          s.dx += s.vx;
-          s.dy += s.vy;
+          const drag = Math.pow(DRAG, step);
+          s.vx = (s.vx + (wantX - s.dx) * SPRING * step) * drag;
+          s.vy = (s.vy + (wantY - s.dy) * SPRING * step) * drag;
+          s.dx += s.vx * step;
+          s.dy += s.vy * step;
         }
 
         const twinkle = reducedMotion
@@ -188,12 +196,21 @@ const Starfield: React.FC = () => {
     };
 
     let raf = 0;
-    const animate = () => {
-      frame++;
+    let previous = 0;
+    const animate = (now: number) => {
+      const step = previous ? Math.min((now - previous) / (1000 / 60), 2) : 1;
+      previous = now;
+      frame += step;
       // Drift is folded into the scroll shift, so both move the field the same
       // way and the wrap only has to be handled once.
       scrollShift = window.scrollY - frame * DRIFT;
-      draw();
+      draw(step);
+      raf = requestAnimationFrame(animate);
+    };
+    const sync = () => {
+      cancelAnimationFrame(raf);
+      previous = 0;
+      if (!visible || document.hidden || reducedMotion) return;
       raf = requestAnimationFrame(animate);
     };
 
@@ -205,7 +222,20 @@ const Starfield: React.FC = () => {
       pointerX = -9999;
       pointerY = -9999;
     };
-    const onResize = () => build();
+    const onResize = () => {
+      build();
+      draw(0);
+    };
+
+    // All sections below the seam have opaque backgrounds. A fixed canvas
+    // itself never leaves the viewport, so observe the surfaces exposing it.
+    const visibility = new Map<Element, boolean>();
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) visibility.set(entry.target, entry.isIntersecting);
+      visible = [...visibility.values()].some(Boolean);
+      sync();
+    });
+    document.querySelectorAll('.hero-section, .paper-transition').forEach(el => observer.observe(el));
 
     build();
 
@@ -219,17 +249,20 @@ const Starfield: React.FC = () => {
       // window when the cursor exits the viewport, and a star left shoved aside
       // would sit there until the pointer came back.
       document.addEventListener('pointerleave', onPointerLeave);
-      animate();
+      draw(0);
     }
     window.addEventListener('resize', onResize);
+    document.addEventListener('visibilitychange', sync);
 
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('pointermove', onPointerMove);
       document.removeEventListener('pointerleave', onPointerLeave);
       window.removeEventListener('resize', onResize);
+      document.removeEventListener('visibilitychange', sync);
+      observer.disconnect();
     };
-  }, []);
+  }, [reducedMotion]);
 
   return (
     <canvas

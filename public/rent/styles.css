@@ -1422,12 +1422,17 @@ img {
     height: 240px;
   }
   .specs-ribbon {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .spec-ribbon-item {
+    min-width: 0;
     border-right: none;
     border-bottom: 1px solid var(--border);
     padding-bottom: 10px;
+  }
+  .spec-ribbon-val {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .spec-ribbon-item:nth-last-child(-n+2) {
     border-bottom: none;

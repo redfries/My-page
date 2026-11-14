@@ -114,7 +114,10 @@ export default function PaperTransition({ ground, accent }: {
       if (typeof Worker !== 'undefined' && typeof canvas.transferControlToOffscreen === 'function') {
         try {
           worker = new Worker(new URL('./paperAscii.worker.ts', import.meta.url), { type: 'module' });
-          worker.onerror = fallback;
+          worker.onerror = (event) => {
+            event?.preventDefault();
+            fallback();
+          };
           worker.onmessage = ({ data }) => { if (data.type === 'failed') fallback(); };
           const offscreen = canvas.transferControlToOffscreen();
           worker.postMessage({ type: 'init', canvas: offscreen, width, height, dpr, palette }, [offscreen]);

@@ -1,4 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import useReducedMotion from './useReducedMotion';
+import { createEngineScope } from './engineLifecycle';
 
 /**
  * Shared warp source, read by ParticleGrid in App.tsx. Values are viewport pixel
@@ -180,8 +182,11 @@ const FILL_BUDGET_MS = 5;
  * held exactly — it is what makes the lemniscate read wide and flat instead of
  * as two circles.
  */
-const figureRadii = () => {
-  const rx = Math.max(96, Math.min(300, window.innerWidth * 0.36));
+const figureRadii = (height: number) => {
+  // Reserve the header, title and seam on short landscape screens too.
+  // Measure the stable canvas wrapper, never the changing visual viewport.
+  const textAndChrome = height > 640 ? 360 : 264;
+  const rx = Math.max(48, Math.min(300, window.innerWidth * 0.36, (height - textAndChrome) / 1.18));
   return { rx, ry: rx * 0.5 };
 };
 
@@ -191,21 +196,26 @@ const figureRadii = () => {
  * target with noise rather than sitting on it, so they overshoot the bare path;
  * the 1.18 covers that trailing envelope plus the thickest tube's radius.
  */
-const publishFigureBox = () => {
-  const { ry } = figureRadii();
+const publishFigureBox = (height: number) => {
+  const radii = figureRadii(height);
+  const { ry } = radii;
   document.documentElement.style.setProperty(
     '--infinity-h',
     `${Math.round(ry * 2 * 1.18)}px`
   );
+  return radii;
 };
 
 function hasWebGL(): boolean {
   try {
     const c = document.createElement('canvas');
-    return !!(
+    const gl = (
       window.WebGLRenderingContext &&
       (c.getContext('webgl2') || c.getContext('webgl'))
     );
+    // This probe is not the scene's canvas; release its temporary GPU context.
+    gl?.getExtension('WEBGL_lose_context')?.loseContext();
+    return !!gl;
   } catch {
     return false;
   }
@@ -216,6 +226,7 @@ interface TubesApp {
   three: {
     size: { width: number; height: number; wWidth: number; wHeight: number };
     onBeforeRender: (state: { elapsed: number; delta: number }) => void;
+    renderer: { onDeviceLost: (info: unknown) => void };
   };
   /** The tube group is also the scene, so moving it moves the whole figure. */
   tubes: {
@@ -226,6 +237,7 @@ interface TubesApp {
     setLightsColors(colors: string[]): void;
   };
   dispose(): void;
+  bloomPass?: { dispose(): void };
 }
 
 interface Props {
@@ -243,8 +255,10 @@ interface Props {
 
 const TubesInfinity: React.FC<Props> = ({ onStatusChange, onAccentChange, anchorRef }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const radiiRef = useRef({ rx: 0, ry: 0 });
   const accentCallback = useRef(onAccentChange);
   const [status, setStatus] = useState<HeroStatus>('loading');
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     accentCallback.current = onAccentChange;
@@ -253,7 +267,13 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, onAccentChange, anchor
   // Before first paint, so the hero reserves the figure's box up front instead
   // of reflowing the text when the engine finishes loading.
   useLayoutEffect(() => {
-    publishFigureBox();
+    const resize = () => {
+      radiiRef.current = publishFigureBox(canvasRef.current?.parentElement?.clientHeight || window.innerHeight);
+    };
+    resize();
+    const observer = new ResizeObserver(resize);
+    if (canvasRef.current?.parentElement) observer.observe(canvasRef.current.parentElement);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -261,27 +281,38 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, onAccentChange, anchor
   }, [status, onStatusChange]);
 
   useEffect(() => {
-    const reducedMotion = window.matchMedia(
-      '(prefers-reduced-motion: reduce)'
-    ).matches;
-
     // The engine is a continuous animation with no meaningful still frame — its
     // tubes only form the figure by chasing a moving target. There is nothing to
     // freeze, so under reduced motion it is not started at all and the hero
     // falls through to the static SVG infinity App.tsx renders for 'failed'.
-    if (!hasWebGL() || reducedMotion) {
+    if (reducedMotion || !hasWebGL()) {
       setStatus('failed');
       return;
     }
+    setStatus('loading');
 
     let disposed = false;
     let app: TubesApp | undefined;
     let teardown: (() => void) | undefined;
+    const scope = createEngineScope();
+    const releaseEngine = () => {
+      const current = app;
+      app = undefined;
+      scope.release();
+      try {
+        current?.dispose();
+      } finally {
+        current?.bloomPass?.dispose();
+      }
+    };
 
     // If the CDN is blocked or slow, stop waiting and show the SVG rather than
     // leaving an empty hero behind the text.
     const failTimer = window.setTimeout(() => {
-      if (!app && !disposed) setStatus('failed');
+      if (!app && !disposed) {
+        disposed = true;
+        setStatus('failed');
+      }
     }, 6000);
 
     (async () => {
@@ -300,7 +331,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, onAccentChange, anchor
         let themeIndex = pickTheme();
 
         // Options in the shape the reference passes them, with the theme swapped in.
-        app = TubesCursor(canvasRef.current, {
+        app = scope.create(() => TubesCursor(canvasRef.current!, {
           tubes: {
             colors: THEMES[themeIndex].tubes,
             lights: {
@@ -309,7 +340,8 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, onAccentChange, anchor
             },
             lerp: TUBE_LERP,
           },
-        });
+        }));
+        window.clearTimeout(failTimer);
         accentCallback.current?.(THEMES[themeIndex].tubes[1]);
 
         const three = app.three;
@@ -363,7 +395,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, onAccentChange, anchor
          */
         three.onBeforeRender = (state: { elapsed: number; delta: number }) => {
           const worldPerPx = three.size.wWidth / three.size.width;
-          const { rx, ry } = figureRadii();
+          const { rx, ry } = radiiRef.current;
 
           // Driven off scrollY rather than a scroll listener: the browser fires
           // those on its own cadence and a busy phone can coalesce the last one
@@ -398,9 +430,13 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, onAccentChange, anchor
               ry * worldPerPx * Math.sin(simTime * SLEEP_TIME_SCALE_2);
             tubes.update({ elapsed: simTime });
 
-            // The extra fill steps are what the budget is for; the steady-state
-            // ones are owed and always run.
-            if (steps >= MAX_STEPS_PER_FRAME && performance.now() > deadline) {
+            // A single update can already consume a slow device's frame budget.
+            // Do not multiply that cost with catch-up steps. Drop the remainder
+            // just as we do for a long frame; every executed step remains 1/60s.
+            if (performance.now() > deadline) {
+              // Keep the fractional step so 16.6/16.7ms frame rounding cannot
+              // turn a 60Hz display into alternating updates and skipped frames.
+              backlog %= SIM_STEP;
               break;
             }
           }
@@ -419,7 +455,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, onAccentChange, anchor
 
         measureAnchor();
         const onResize = () => {
-          publishFigureBox();
+          radiiRef.current = publishFigureBox(canvasRef.current?.parentElement?.clientHeight || window.innerHeight);
           measureAnchor();
         };
         window.addEventListener('resize', onResize);
@@ -449,9 +485,22 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, onAccentChange, anchor
         };
         window.addEventListener('click', onClick);
 
+        const renderer = three.renderer;
+        const originalDeviceLost = renderer.onDeviceLost;
+        const onDeviceLost = (info: unknown) => {
+          originalDeviceLost.call(renderer, info);
+          if (disposed) return;
+          disposed = true;
+          teardown?.();
+          setStatus('failed');
+        };
+        // The engine may select WebGPU or WebGL; this handles both backends.
+        renderer.onDeviceLost = onDeviceLost;
+
         setStatus('ready');
 
         teardown = () => {
+          renderer.onDeviceLost = originalDeviceLost;
           window.removeEventListener('resize', onResize);
           window.visualViewport?.removeEventListener('resize', onResize);
           window.removeEventListener('click', onClick);
@@ -459,11 +508,14 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, onAccentChange, anchor
           // engine already parks itself off-screen via an IntersectionObserver
           // and on tab-hide via visibilitychange, so this only has to cover
           // unmount.
-          app?.dispose();
+          releaseEngine();
         };
 
         if (disposed) teardown();
       } catch {
+        window.clearTimeout(failTimer);
+        if (teardown) teardown();
+        else releaseEngine();
         if (!disposed) setStatus('failed');
       }
     })();
@@ -473,7 +525,7 @@ const TubesInfinity: React.FC<Props> = ({ onStatusChange, onAccentChange, anchor
       window.clearTimeout(failTimer);
       teardown?.();
     };
-  }, [anchorRef]);
+  }, [anchorRef, reducedMotion]);
 
   return (
     <div

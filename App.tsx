@@ -17,6 +17,7 @@ import {
 import TubesInfinity, { heroWarp, type HeroStatus } from './TubesInfinity';
 import Starfield from './Starfield';
 import PaperTransition from './PaperTransition';
+import useReducedMotion from './useReducedMotion';
 
 // --- Types ---
 interface Project {
@@ -183,6 +184,7 @@ const PROJECT_ICONS: Record<
  */
 const ParticleGrid: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -190,7 +192,8 @@ const ParticleGrid: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let animationFrameId: number;
+    let animationFrameId = 0;
+    let visible = false;
     let width = window.innerWidth;
     let height = window.innerHeight;
 
@@ -280,26 +283,43 @@ const ParticleGrid: React.FC = () => {
         ctx.fill();
       });
 
-      animationFrameId = requestAnimationFrame(animate);
+      if (!reducedMotion && visible && !document.hidden) {
+        animationFrameId = requestAnimationFrame(animate);
+      }
     };
 
     const handleMouseMove = (e: MouseEvent) => {
       mouseX = e.clientX;
       mouseY = e.clientY;
     };
-    const handleResize = () => init();
+    const sync = () => {
+      cancelAnimationFrame(animationFrameId);
+      if (visible && !document.hidden) animate();
+    };
+    const handleResize = () => { init(); sync(); };
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) visibility.set(entry.target, entry.isIntersecting);
+      visible = [...visibility.values()].some(Boolean);
+      sync();
+    });
+    const visibility = new Map<Element, boolean>();
+    document.querySelectorAll('.hero-section, .paper-transition').forEach(el => observer.observe(el));
 
-    window.addEventListener('mousemove', handleMouseMove);
+    if (!reducedMotion) window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('resize', handleResize);
+    document.addEventListener('visibilitychange', sync);
     init();
+    // Paint a still grid even when motion is disabled; observers own the loop.
     animate();
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('resize', handleResize);
+      document.removeEventListener('visibilitychange', sync);
+      observer.disconnect();
       cancelAnimationFrame(animationFrameId);
     };
-  }, []);
+  }, [reducedMotion]);
 
   return (
     <canvas
@@ -379,7 +399,7 @@ const MainHero: React.FC<{
         <div
           ref={figureRef}
           className="hero-figure"
-          style={status === 'failed' ? undefined : { height: 'var(--infinity-h, 260px)' }}
+          style={{ height: 'var(--infinity-h, 260px)' }}
         >
           {status === 'failed' && (
             <div className="hero-figure__fallback">
@@ -466,20 +486,6 @@ const ToolkitSection: React.FC = () => (
   </section>
 );
 
-const useReducedMotion = () => {
-  const [reduced, setReduced] = useState(false);
-
-  useEffect(() => {
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const update = () => setReduced(query.matches);
-    update();
-    query.addEventListener('change', update);
-    return () => query.removeEventListener('change', update);
-  }, []);
-
-  return reduced;
-};
-
 const ProjectVideo: React.FC<{ src: string; poster: string }> = ({ src, poster }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const reducedMotion = useReducedMotion();
@@ -487,32 +493,45 @@ const ProjectVideo: React.FC<{ src: string; poster: string }> = ({ src, poster }
   useEffect(() => {
     const video = videoRef.current;
     if (!video || reducedMotion) return;
+    let visible = false;
+    let disposed = false;
+    const sync = () => {
+      if (visible && !document.hidden) {
+        video.play().then(() => {
+          // A pending play may resolve after scrolling away or unmounting.
+          if (disposed || !visible || document.hidden) video.pause();
+        }).catch(() => undefined);
+      } else {
+        video.pause();
+      }
+    };
 
     // Prepare the small clips before they enter view, instead of making the
     // first scroll pay for download and decoder startup together.
     const prepare = new IntersectionObserver(([entry]) => {
       if (!entry.isIntersecting) return;
       video.preload = 'auto';
-      video.load();
+      if (video.networkState === HTMLMediaElement.NETWORK_EMPTY) video.load();
+      sync();
       prepare.disconnect();
     }, { rootMargin: '600px' });
     prepare.observe(video);
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          video.play().catch(() => undefined);
-        } else {
-          video.pause();
-        }
+        visible = entry.isIntersecting && entry.intersectionRatio >= 0.25;
+        sync();
       },
       { threshold: 0.25 }
     );
 
     observer.observe(video);
+    document.addEventListener('visibilitychange', sync);
     return () => {
+      disposed = true;
       prepare.disconnect();
       observer.disconnect();
+      document.removeEventListener('visibilitychange', sync);
       video.pause();
     };
   }, [reducedMotion]);
